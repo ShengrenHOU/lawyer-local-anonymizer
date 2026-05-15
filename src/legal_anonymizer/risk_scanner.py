@@ -85,10 +85,34 @@ RISK_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ("COMPANY", "疑似英文简称仍未脱敏", re.compile(r"[“\"']\s*[A-Z]{2,8}\s*[”\"']")),
 )
 
+ADDITIONAL_RISK_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
+    (
+        "COMPANY",
+        "疑似中文公司/机构名称仍未脱敏",
+        re.compile(
+            r"[\u4e00-\u9fa5A-Za-z0-9（）()·&.\-\s]{2,80}"
+            r"(?:有限公司|股份有限公司|有限责任公司|合伙企业|律师事务所|基金|中心|委员会|银行)"
+        ),
+    ),
+    (
+        "PERSON",
+        "疑似中文当事人姓名仍未脱敏",
+        re.compile(r"(?:甲方|乙方|丙方|丁方|委托人|联系人|法定代表人|授权代表|签署人)[：:\s]*[\u4e00-\u9fa5]{2,4}"),
+    ),
+    (
+        "ADDRESS",
+        "疑似中文地址仍未脱敏",
+        re.compile(
+            r"[\u4e00-\u9fa5]{2,20}(?:省|市)[\u4e00-\u9fa5]{1,20}(?:区|县|市)"
+            r"[\u4e00-\u9fa5A-Za-z0-9号弄路街道大厦座室层\-]{2,80}"
+        ),
+    ),
+)
+
 
 def scan_anonymized_text(text: str) -> list[RiskFinding]:
     findings: list[RiskFinding] = []
-    for category, reason, pattern in RISK_PATTERNS:
+    for category, reason, pattern in (*RISK_PATTERNS, *ADDITIONAL_RISK_PATTERNS):
         for match in pattern.finditer(text):
             value = match.group(0).strip()
             if "[[" in value or not value:

@@ -52,6 +52,8 @@ For `.docx`, anonymization and restoration modify a copied Word document directl
 
 Core detector failures are fail-closed: the file is routed to `02-需要复核-暂勿上传` instead of producing an uploadable result. Optional spaCy model absence remains a soft fallback.
 
+The second-pass leakage gate is intentionally conservative. It blocks residual structured PII plus common legal-document residue such as Chinese company/institution names, Chinese party-name contexts, Chinese addresses, English company/law-firm names, English addresses, and quoted acronym aliases. This gate is not a replacement for first-pass anonymization; it is the last upload-safety barrier.
+
 Restoration is also gated. If an AI result deletes a required placeholder or introduces an unknown placeholder, the restored output is written to the review folder and surfaced as requiring manual review.
 
 ## Release Checklist

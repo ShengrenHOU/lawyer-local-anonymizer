@@ -10,6 +10,7 @@ It replaces sensitive information in Word, copyable PDF, and text files with sta
 - Creates a simple six-folder workflow.
 - Watches an input folder and anonymizes new files automatically.
 - Runs a second-pass leakage scan before allowing upload.
+- Blocks residual Chinese company/institution names, Chinese party-name contexts, Chinese addresses, English legal entities, and acronym aliases during the second-pass scan.
 - Uses a multi-engine detection pipeline: lightweight Presidio recognizers, optional spaCy NER, and legal-document rules.
 - Generates AI-safe files for Kimi, ChatGPT, or similar tools.
 - Keeps `.docx` anonymization and restoration in Word format where possible.
@@ -147,8 +148,8 @@ The app intentionally avoids slow default Presidio NLP startup in the click-to-u
 
 Current local validation:
 
-- `pytest`: 31 tests passing
-- V2 leakage gate tests cover English legal headers, English addresses, Chinese party names, and acronym residuals
+- `pytest`: 33 tests passing
+- Leakage gate tests cover English legal headers, English addresses, Chinese company/institution names, Chinese addresses, Chinese party-name contexts, and acronym residuals
 - `ruff`: all checks passing
 - packaged smoke: built `LegalAnonymizer.exe` creates the six working folders under an isolated test user profile
 
