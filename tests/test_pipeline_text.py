@@ -1,0 +1,95 @@
+from legal_anonymizer.document_io import read_text_document, write_text_document
+from legal_anonymizer.mapping_store import build_mapping_table
+from legal_anonymizer.models import Entity
+from legal_anonymizer.pipeline import (
+    anonymize_file,
+    latest_mapping_path,
+    latest_prompt_path,
+    restore_file_auto,
+    restore_pasted_text,
+    restore_pasted_text_latest,
+)
+from legal_anonymizer.reporting import build_ai_prompt, build_report
+from legal_anonymizer.workspace import create_workspace
+
+
+def test_read_and_write_txt(tmp_path):
+    source = tmp_path / "source.txt"
+    source.write_text("乙方：张三", encoding="utf-8")
+
+    assert read_text_document(source) == "乙方：张三"
+
+    output = tmp_path / "output.txt"
+    write_text_document(output, "已还原")
+
+    assert output.read_text(encoding="utf-8") == "已还原"
+
+
+def test_report_and_prompt_do_not_expose_raw_values():
+    table = build_mapping_table("demo.docx", [Entity("PERSON", "张三", 0, 2)])
+
+    report = build_report(table)
+    prompt = build_ai_prompt()
+
+    assert "PERSON: 1" in report
+    assert "张三" not in report
+    assert "不要修改、删除、合并或重命名任何 [[...]] 占位符" in prompt
+
+
+def test_pipeline_anonymizes_and_restores_pasted_text(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "demo.txt"
+    source.write_text("乙方：张三，手机号：13800000000。", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+    restored = restore_pasted_text(anonymized.anonymized_text, anonymized.mapping_path, workspace)
+
+    assert anonymized.output_path.exists()
+    assert anonymized.mapping_path.exists()
+    assert anonymized.mapping_xlsx_path.exists()
+    assert anonymized.report_path.exists()
+    assert anonymized.prompt_path.exists()
+    assert "张三" not in anonymized.output_path.read_text(encoding="utf-8")
+    assert "识别来源:" in anonymized.report_path.read_text(encoding="utf-8")
+    assert restored.output_path.exists()
+    assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
+
+
+def test_pipeline_auto_restores_downloaded_ai_file_when_single_mapping_exists(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "demo.txt"
+    source.write_text("乙方：张三，手机号：13800000000。", encoding="utf-8")
+    anonymized = anonymize_file(source, workspace)
+    ai_result = workspace.restore_pending / "kimi-result.txt"
+    ai_result.write_text(anonymized.anonymized_text, encoding="utf-8")
+
+    restored = restore_file_auto(ai_result, workspace)
+
+    assert restored.output_path.exists()
+    assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
+
+
+def test_pipeline_restores_pasted_text_with_latest_mapping(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "demo.txt"
+    source.write_text("乙方：张三，手机号：13800000000。", encoding="utf-8")
+    anonymized = anonymize_file(source, workspace)
+
+    restored = restore_pasted_text_latest(anonymized.anonymized_text, workspace)
+
+    assert latest_mapping_path(workspace) == anonymized.mapping_path
+    assert latest_prompt_path(workspace) == anonymized.prompt_path
+    assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
+
+
+def test_pipeline_quarantines_when_second_pass_finds_residual_risk(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "risky.txt"
+    source.write_text("Please review Rockit Trading PLC tomorrow.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert not anonymized.upload_allowed
+    assert anonymized.output_path.parent == workspace.review_required
+    assert anonymized.risk_findings
+    assert "暂勿上传" in anonymized.risk_report_path.read_text(encoding="utf-8")

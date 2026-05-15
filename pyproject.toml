@@ -1,0 +1,61 @@
+[project]
+name = "legal-anonymizer"
+version = "0.1.0"
+description = "Local reversible anonymization assistant for lawyers"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+  { name = "Shengren Hou" },
+]
+keywords = ["privacy", "anonymization", "legaltech", "desktop", "local-first"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Win32 (MS Windows)",
+  "Intended Audience :: Legal Industry",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Office/Business",
+  "Topic :: Security",
+]
+dependencies = [
+  "PySide6>=6.7",
+  "watchdog>=4.0",
+  "python-docx>=1.1",
+  "PyMuPDF>=1.24",
+  "openpyxl>=3.1",
+  "presidio-analyzer>=2.2.362",
+  "presidio-anonymizer>=2.2.362",
+  "spacy>=3.8",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "ruff>=0.5",
+  "pyinstaller>=6.8",
+]
+
+[project.scripts]
+legal-anonymizer = "legal_anonymizer.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/"
+Issues = "https://github.com/"
+
+[build-system]
+requires = ["setuptools>=70", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
