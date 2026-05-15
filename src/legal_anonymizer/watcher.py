@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -14,6 +15,18 @@ from legal_anonymizer.pipeline import anonymize_file, restore_file_auto
 from legal_anonymizer.workspace import WorkspacePaths
 
 StatusCallback = Callable[[str], None]
+
+
+@dataclass(frozen=True)
+class RunningObserver:
+    observer: Observer
+    handler: "LegalAnonymizerHandler"
+
+    def stop(self) -> None:
+        self.observer.stop()
+
+    def join(self, timeout: float | None = None) -> None:
+        self.observer.join(timeout=timeout)
 
 
 class LegalAnonymizerHandler(FileSystemEventHandler):
@@ -35,22 +48,29 @@ class LegalAnonymizerHandler(FileSystemEventHandler):
         if not event.is_directory:
             self.handle_path(Path(event.dest_path))
 
-    def scan_existing(self) -> None:
+    def scan_existing(self, force: bool = False) -> None:
+        scanned = 0
         for folder in (self.workspace.pending, self.workspace.restore_pending):
             for path in folder.iterdir():
                 if path.is_file():
-                    self.handle_path(path)
+                    scanned += 1
+                    self.handle_path(path, force=force)
+        if scanned == 0:
+            self.status("没有发现待处理文件。")
 
-    def handle_path(self, path: Path) -> None:
+    def handle_path(self, path: Path, force: bool = False) -> None:
         path = path.resolve()
-        if path in self._processed or path.name.startswith("~$"):
+        if path.name.startswith("~$"):
+            return
+        if not force and path in self._processed:
             return
         try:
             _wait_until_stable(path)
             pending = self.workspace.pending.resolve()
             restore_pending = self.workspace.restore_pending.resolve()
             if path.parent == pending and path.suffix.lower() in INPUT_EXTENSIONS:
-                if was_processed(path, self.workspace.mappings):
+                if not force and was_processed(path, self.workspace.mappings):
+                    self.status(f"已跳过已处理文件: {path.name}")
                     return
                 self._processed.add(path)
                 self.status(f"开始匿名化: {path.name}")
@@ -61,7 +81,8 @@ class LegalAnonymizerHandler(FileSystemEventHandler):
                 else:
                     self.status(f"自动漏扫未通过，已放入需要复核目录: {result.output_path.name}")
             elif path.parent == restore_pending and path.suffix.lower() in RESTORE_EXTENSIONS:
-                if was_processed(path, self.workspace.mappings):
+                if not force and was_processed(path, self.workspace.mappings):
+                    self.status(f"已跳过已处理 AI 结果: {path.name}")
                     return
                 self._processed.add(path)
                 self.status(f"开始还原: {path.name}")
@@ -91,14 +112,14 @@ class LegalAnonymizerHandler(FileSystemEventHandler):
         return True
 
 
-def start_observer(workspace: WorkspacePaths, status: StatusCallback) -> Observer:
+def start_observer(workspace: WorkspacePaths, status: StatusCallback) -> RunningObserver:
     observer = Observer()
     handler = LegalAnonymizerHandler(workspace, status)
     observer.schedule(handler, str(workspace.pending), recursive=False)
     observer.schedule(handler, str(workspace.restore_pending), recursive=False)
     observer.start()
     handler.scan_existing()
-    return observer
+    return RunningObserver(observer=observer, handler=handler)
 
 
 def _wait_until_stable(path: Path, attempts: int = 20, delay: float = 0.5) -> None:

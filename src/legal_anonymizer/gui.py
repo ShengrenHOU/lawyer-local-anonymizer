@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +9,7 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -30,6 +32,78 @@ from legal_anonymizer.watcher import start_observer
 from legal_anonymizer.workspace import create_workspace
 
 
+APP_STYLE = """
+QWidget {
+    font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+    font-size: 10pt;
+    color: #1f2933;
+    background: #f7f8fa;
+}
+QLabel#title {
+    font-size: 18pt;
+    font-weight: 700;
+    color: #111827;
+}
+QLabel#subtitle {
+    color: #4b5563;
+}
+QLabel#instruction {
+    color: #1f2937;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+QLabel#hint {
+    color: #7c2d12;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+QLabel#statusLabel {
+    color: #0f172a;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+QPushButton {
+    min-height: 34px;
+    padding: 6px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+}
+QPushButton:hover {
+    background: #f1f5f9;
+}
+QPushButton#primaryButton {
+    font-weight: 600;
+    color: #ffffff;
+    border: 1px solid #2563eb;
+    background: #2563eb;
+}
+QPushButton#primaryButton:hover {
+    background: #1d4ed8;
+}
+QPushButton#warningButton {
+    color: #9a3412;
+    border: 1px solid #fdba74;
+    background: #fff7ed;
+}
+QTextEdit {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    padding: 8px;
+}
+QFrame#divider {
+    color: #e5e7eb;
+}
+"""
+
+
 class MainWindow(QMainWindow):
     status_changed = Signal(str)
 
@@ -39,29 +113,44 @@ class MainWindow(QMainWindow):
         self.status_changed.connect(self.set_status)
         self.observer = start_observer(self.workspace, self.status_changed.emit)
         self.setWindowTitle("律师本地匿名化助手")
+        self.setStyleSheet(APP_STYLE)
+
+        title = QLabel("律师本地匿名化助手")
+        title.setObjectName("title")
+        subtitle = QLabel("本地处理客户文件，生成可上传 AI 的匿名版本；本地映射表不要上传。")
+        subtitle.setObjectName("subtitle")
+        subtitle.setWordWrap(True)
 
         self.status_label = QLabel("状态：正在监听文件夹")
+        self.status_label.setObjectName("statusLabel")
         self.paste_box = QTextEdit()
         self.paste_box.setPlaceholderText(
             "如果 AI 不能下载结果，把 AI 回复粘贴到这里，然后点击“粘贴AI回复并还原”。"
         )
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
-        self.log_box.setMaximumHeight(120)
+        self.log_box.setMaximumHeight(140)
         self.log_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.log_box.setPlaceholderText("处理记录会显示在这里。")
 
         open_pending = QPushButton("放原文件")
+        open_pending.setObjectName("primaryButton")
         open_pending.clicked.connect(lambda: self.open_folder(self.workspace.pending))
         open_anonymized = QPushButton("拿去上传AI")
+        open_anonymized.setObjectName("primaryButton")
         open_anonymized.clicked.connect(lambda: self.open_folder(self.workspace.anonymized))
         open_restore = QPushButton("放AI结果")
+        open_restore.setObjectName("primaryButton")
         open_restore.clicked.connect(lambda: self.open_folder(self.workspace.restore_pending))
         open_output = QPushButton("看还原结果")
+        open_output.setObjectName("primaryButton")
         open_output.clicked.connect(lambda: self.open_folder(self.workspace.restored))
 
         open_review = QPushButton("需要复核")
+        open_review.setObjectName("warningButton")
         open_review.clicked.connect(lambda: self.open_folder(self.workspace.review_required))
+        rescan = QPushButton("重新扫描")
+        rescan.clicked.connect(self.rescan_folders)
         copy_prompt = QPushButton("复制AI提示词")
         copy_prompt.clicked.connect(self.copy_latest_prompt)
         restore_paste = QPushButton("粘贴AI回复并还原")
@@ -72,19 +161,32 @@ class MainWindow(QMainWindow):
         clear_memory.clicked.connect(self.clear_memory)
 
         layout = QVBoxLayout()
-        layout.addWidget(
-            QLabel("1. 点“放原文件”并放入客户文件。2. 点“拿去上传AI”并只上传这里的文件。3. AI 结果放回或粘贴后还原。")
-        )
-        layout.addWidget(QLabel("旧版 .doc 如果处理失败，请先用 Word/WPS 另存为 .docx。不要上传“99-本地映射表-不要上传”。"))
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(10)
+        layout.addWidget(title)
+        layout.addWidget(subtitle)
+
+        instruction = QLabel("1. 放原文件  2. 拿匿名文件上传 AI  3. 放回或粘贴 AI 结果  4. 查看还原结果")
+        instruction.setObjectName("instruction")
+        instruction.setWordWrap(True)
+        layout.addWidget(instruction)
+
+        warning = QLabel("旧版 .doc 处理失败时，请先用 Word/WPS 另存为 .docx。不要上传“99-本地映射表-不要上传”。")
+        warning.setObjectName("hint")
+        warning.setWordWrap(True)
+        layout.addWidget(warning)
 
         main_row = QHBoxLayout()
+        main_row.setSpacing(8)
         for button in (open_pending, open_anonymized, open_restore, open_output):
             main_row.addWidget(button)
         layout.addLayout(main_row)
 
         secondary_row = QHBoxLayout()
+        secondary_row.setSpacing(8)
         for button in (
             open_review,
+            rescan,
             copy_prompt,
             restore_paste,
             restore_paste_manual,
@@ -92,6 +194,11 @@ class MainWindow(QMainWindow):
         ):
             secondary_row.addWidget(button)
         layout.addLayout(secondary_row)
+
+        divider = QFrame()
+        divider.setFrameShape(QFrame.Shape.HLine)
+        divider.setObjectName("divider")
+        layout.addWidget(divider)
 
         layout.addWidget(self.paste_box)
         layout.addWidget(self.status_label)
@@ -120,6 +227,11 @@ class MainWindow(QMainWindow):
 
     def add_log(self, message: str) -> None:
         self.log_box.append(f"- {message}")
+
+    def rescan_folders(self) -> None:
+        self.set_status("正在重新扫描待匿名化和待还原文件夹。")
+        thread = threading.Thread(target=lambda: self.observer.handler.scan_existing(force=True), daemon=True)
+        thread.start()
 
     def copy_latest_prompt(self) -> None:
         try:
@@ -171,7 +283,8 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self,
             "清空本地学习记忆",
-            f"将清空 {count} 条本地学习记忆。\n\n这不会删除已生成的对照表，也不会影响已经处理过的文件还原。",
+            f"将清空 {count} 条本地学习记忆。\n\n"
+            "这不会删除已生成的对照表，也不会影响已经处理过的文件还原。",
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -187,6 +300,6 @@ class MainWindow(QMainWindow):
 def run_app(root: Path) -> int:
     app = QApplication([])
     window = MainWindow(root)
-    window.resize(880, 460)
+    window.resize(960, 540)
     window.show()
     return app.exec()
