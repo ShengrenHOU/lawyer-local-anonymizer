@@ -14,6 +14,8 @@ It replaces sensitive information in Word, copyable PDF, and text files with sta
 - Generates AI-safe files for Kimi, ChatGPT, or similar tools.
 - Generates a local JSON mapping file for restoration.
 - Generates a lawyer-readable Excel comparison table.
+- Keeps a local learning memory so repeated names, companies, and addresses are recognized more easily over time.
+- Writes one per-file result summary explaining whether the output is uploadable and which mapping table belongs to it.
 - Restores AI output from downloaded files or pasted text.
 - Keeps original files unchanged.
 
@@ -39,7 +41,7 @@ If a file lands in `02-需要复核-暂勿上传/`, the automatic leakage scan f
 
 ## Quick Start for End Users
 
-Download or receive `LegalAnonymizer.zip`, unzip it, then double-click:
+Receive the packaged Windows app folder from the project maintainer, then double-click:
 
 ```text
 LegalAnonymizer.exe
@@ -52,6 +54,7 @@ Full user guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
 Input anonymization:
 
 - `.docx`
+- `.doc`, if Microsoft Word is installed locally for conversion; otherwise save as `.docx` first
 - copyable `.pdf`
 - `.txt`
 - `.md`
@@ -106,7 +109,7 @@ dist\LegalAnonymizer\LegalAnonymizer.exe
 dist\LegalAnonymizer.zip
 ```
 
-Give the whole `dist\LegalAnonymizer/` folder, or the zip file, to the lawyer. The app window itself uses Chinese text.
+Give the whole `dist\LegalAnonymizer/` folder to the lawyer. The app window itself uses Chinese text.
 
 ## Security Model
 
@@ -142,7 +145,7 @@ The app intentionally avoids slow default Presidio NLP startup in the click-to-u
 
 Current local validation:
 
-- `pytest`: 19 tests passing
+- `pytest`: 22 tests passing
 - V2 leakage gate tests cover English legal headers, English addresses, Chinese party names, and acronym residuals
 - `ruff`: all checks passing
 - packaged smoke: built `LegalAnonymizer.exe` creates the five working folders under an isolated test user profile

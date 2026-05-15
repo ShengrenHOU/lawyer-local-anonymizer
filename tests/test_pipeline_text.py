@@ -49,8 +49,10 @@ def test_pipeline_anonymizes_and_restores_pasted_text(tmp_path):
     assert anonymized.mapping_xlsx_path.exists()
     assert anonymized.report_path.exists()
     assert anonymized.prompt_path.exists()
+    assert anonymized.task_summary_path.exists()
     assert "张三" not in anonymized.output_path.read_text(encoding="utf-8")
     assert "识别来源:" in anonymized.report_path.read_text(encoding="utf-8")
+    assert "AI" in anonymized.task_summary_path.read_text(encoding="utf-8")
     assert restored.output_path.exists()
     assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
 

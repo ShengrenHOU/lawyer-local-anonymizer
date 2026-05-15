@@ -6,7 +6,7 @@ from pathlib import Path
 from legal_anonymizer.anonymizer import anonymize_text
 from legal_anonymizer.document_io import read_text_document, write_text_document
 from legal_anonymizer.engines.pipeline import detect_entities_multi_engine
-from legal_anonymizer.learning import detect_learned_entities
+from legal_anonymizer.learning import detect_learned_entities, learn_from_table
 from legal_anonymizer.mapping_store import (
     build_mapping_table,
     export_mapping_xlsx,
@@ -27,6 +27,7 @@ class AnonymizedFileResult:
     report_path: Path
     prompt_path: Path
     risk_report_path: Path
+    task_summary_path: Path
     anonymized_text: str
     risk_findings: list[RiskFinding]
     upload_allowed: bool
@@ -52,14 +53,28 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     output_path = output_dir / f"{source_path.stem}.anonymized.txt"
     report_path = workspace.mappings / f"{source_path.stem}.report.txt"
     risk_report_path = workspace.mappings / f"{source_path.stem}.risk-report.txt"
+    task_summary_path = output_dir / f"{source_path.stem}.处理结果说明.txt"
     prompt_path = output_dir / f"{source_path.stem}.ai-prompt.txt"
     mapping_path = save_mapping_table(workspace.mappings, table)
     mapping_xlsx_path = export_mapping_xlsx(workspace.mappings, table)
+    learn_from_table(table, workspace.mappings)
 
     write_text_document(output_path, anonymized_text)
     report_path.write_text(build_report(table), encoding="utf-8")
     risk_report_path.write_text(build_risk_report(risk_findings), encoding="utf-8")
     prompt_path.write_text(build_ai_prompt(), encoding="utf-8")
+    task_summary_path.write_text(
+        _build_task_summary(
+            source_path=source_path,
+            output_path=output_path,
+            prompt_path=prompt_path,
+            mapping_xlsx_path=mapping_xlsx_path,
+            risk_report_path=risk_report_path,
+            upload_allowed=upload_allowed,
+            risk_findings=risk_findings,
+        ),
+        encoding="utf-8",
+    )
 
     return AnonymizedFileResult(
         output_path=output_path,
@@ -68,6 +83,7 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
         report_path=report_path,
         prompt_path=prompt_path,
         risk_report_path=risk_report_path,
+        task_summary_path=task_summary_path,
         anonymized_text=anonymized_text,
         risk_findings=risk_findings,
         upload_allowed=upload_allowed,
@@ -150,3 +166,52 @@ def restore_file(source_path: Path, mapping_path: Path, workspace: WorkspacePath
 def restore_file_auto(source_path: Path, workspace: WorkspacePaths) -> RestoredFileResult:
     mapping_path = resolve_mapping_path(source_path, workspace)
     return restore_file(source_path, mapping_path, workspace)
+
+
+def _build_task_summary(
+    source_path: Path,
+    output_path: Path,
+    prompt_path: Path,
+    mapping_xlsx_path: Path,
+    risk_report_path: Path,
+    upload_allowed: bool,
+    risk_findings: list[RiskFinding],
+) -> str:
+    status = "可以上传 AI" if upload_allowed else "暂勿上传，需要复核"
+    lines = [
+        f"原文件: {source_path.name}",
+        f"处理状态: {status}",
+        "",
+        "下一步:",
+    ]
+    if upload_allowed:
+        lines.extend(
+            [
+                f"1. 只上传这个匿名文件给 AI: {output_path.name}",
+                f"2. 可以同时复制这个提示词给 AI: {prompt_path.name}",
+                "3. AI 处理后，把结果放入“03-AI结果文件-待还原”，或粘贴到程序窗口还原。",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "1. 不要上传这个文件给 AI。",
+                f"2. 先查看漏扫报告: {risk_report_path.name}",
+                "3. 处理后重新把原文件放入“01-待匿名化”。",
+            ]
+        )
+    lines.extend(
+        [
+            "",
+            f"匿名文件: {output_path}",
+            f"AI 提示词: {prompt_path}",
+            f"本地对照表: {mapping_xlsx_path}",
+            f"漏扫报告: {risk_report_path}",
+            "",
+            "注意: 不要把“99-本地映射表-不要上传”里的任何文件上传给 AI。",
+        ]
+    )
+    if risk_findings:
+        categories = sorted({finding.category for finding in risk_findings})
+        lines.append(f"疑似风险类别: {', '.join(categories)}")
+    return "\n".join(lines) + "\n"
