@@ -71,6 +71,21 @@ def test_pipeline_auto_restores_downloaded_ai_file_when_single_mapping_exists(tm
     assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
 
 
+def test_pipeline_auto_restores_matching_anonymized_file_when_multiple_mappings_exist(tmp_path):
+    workspace = create_workspace(tmp_path)
+    first = workspace.pending / "client agreement (v1).txt"
+    second = workspace.pending / "other matter.txt"
+    first.write_text("Party A: Alice Chen, phone: 13800000000.", encoding="utf-8")
+    second.write_text("Party A: Bob Wang, phone: 13900000000.", encoding="utf-8")
+    first_anonymized = anonymize_file(first, workspace)
+    anonymize_file(second, workspace)
+
+    restored = restore_file_auto(first_anonymized.output_path, workspace)
+
+    assert restored.output_path.exists()
+    assert restored.output_path.read_text(encoding="utf-8") == "Party A: Alice Chen, phone: 13800000000."
+
+
 def test_pipeline_restores_pasted_text_with_latest_mapping(tmp_path):
     workspace = create_workspace(tmp_path)
     source = workspace.pending / "demo.txt"

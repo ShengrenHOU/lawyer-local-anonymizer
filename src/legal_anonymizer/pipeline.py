@@ -17,6 +17,7 @@ from legal_anonymizer.mapping_store import (
     export_mapping_xlsx,
     load_mapping_table,
     save_mapping_table,
+    _safe_stem,
 )
 from legal_anonymizer.reporting import build_ai_prompt, build_report
 from legal_anonymizer.restore import restore_text
@@ -149,12 +150,12 @@ def restore_pasted_text_latest(text: str, workspace: WorkspacePaths) -> Restored
 
 
 def resolve_mapping_path(source_path: Path, workspace: WorkspacePaths) -> Path:
-    exact_path = workspace.mappings / f"{source_path.stem}.mapping.json"
+    exact_path = workspace.mappings / f"{_safe_stem(source_path.stem)}.mapping.json"
     if exact_path.exists():
         return exact_path
 
     anonymized_stem = source_path.stem.replace(".anonymized", "")
-    anonymized_path = workspace.mappings / f"{anonymized_stem}.mapping.json"
+    anonymized_path = workspace.mappings / f"{_safe_stem(anonymized_stem)}.mapping.json"
     if anonymized_path.exists():
         return anonymized_path
 
@@ -163,6 +164,13 @@ def resolve_mapping_path(source_path: Path, workspace: WorkspacePaths) -> Path:
         key=lambda item: item.stat().st_mtime,
         reverse=True,
     )
+    matched_candidates = [
+        candidate
+        for candidate in candidates
+        if _mapping_source_matches(candidate, source_path)
+    ]
+    if len(matched_candidates) == 1:
+        return matched_candidates[0]
     if len(candidates) == 1:
         return candidates[0]
     if not candidates:
@@ -189,6 +197,16 @@ def restore_file(source_path: Path, mapping_path: Path, workspace: WorkspacePath
 def restore_file_auto(source_path: Path, workspace: WorkspacePaths) -> RestoredFileResult:
     mapping_path = resolve_mapping_path(source_path, workspace)
     return restore_file(source_path, mapping_path, workspace)
+
+
+def _mapping_source_matches(mapping_path: Path, source_path: Path) -> bool:
+    try:
+        table = load_mapping_table(mapping_path)
+    except (OSError, ValueError, KeyError):
+        return False
+    source_stem = source_path.stem.replace(".anonymized", "")
+    table_stem = Path(table.source_name).stem
+    return source_stem == table_stem or _safe_stem(source_stem) == _safe_stem(table_stem)
 
 
 def _build_task_summary(

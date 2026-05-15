@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import zipfile
+import shutil
 import re
 from html import escape
 from pathlib import Path
@@ -59,7 +60,17 @@ def anonymize_docx_document(source: Path, target: Path, table: MappingTable) -> 
 
 def restore_docx_document(source: Path, target: Path, table: MappingTable) -> Path:
     replacements = {mapping.placeholder: mapping.value for mapping in table.mappings}
-    return _replace_docx_document(source, target, replacements)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    _replace_docx_xml_text(target, replacements, include_attributes=False)
+    document = Document(str(target))
+    for paragraph in _iter_docx_paragraphs(document):
+        if "[[" in paragraph.text:
+            replaced = _replace_text(paragraph.text, replacements)
+            if replaced != paragraph.text:
+                _set_paragraph_visible_text(paragraph, replaced)
+    document.save(str(target))
+    return target
 
 
 def _replace_docx_document(source: Path, target: Path, replacements: dict[str, str]) -> Path:
@@ -69,7 +80,7 @@ def _replace_docx_document(source: Path, target: Path, replacements: dict[str, s
     for paragraph in _iter_docx_paragraphs(document):
         _replace_paragraph_text(paragraph, ordered)
     document.save(str(target))
-    _replace_docx_xml_text(target, ordered)
+    _replace_docx_xml_text(target, ordered, include_attributes=True)
     return target
 
 
@@ -99,17 +110,13 @@ def _iter_cell_paragraphs(cell: _Cell) -> Iterable[Paragraph]:
 def _replace_paragraph_text(paragraph: Paragraph, replacements: dict[str, str]) -> None:
     if not paragraph.text:
         return
+    original = paragraph.text
+    if any(source in original for source in replacements):
+        replaced = _replace_text(original, replacements)
+        _set_paragraph_visible_text(paragraph, replaced)
+        return
     for run in paragraph.runs:
         run.text = _replace_text(run.text, replacements)
-    collapsed = _collapse_placeholder_company_suffix(paragraph.text)
-    if any(source in paragraph.text for source in replacements) or collapsed != paragraph.text:
-        replaced = _collapse_placeholder_company_suffix(_replace_text(paragraph.text, replacements))
-        if paragraph.runs:
-            paragraph.runs[0].text = replaced
-            for run in paragraph.runs[1:]:
-                run.text = ""
-        else:
-            paragraph.add_run(replaced)
 
 
 def _replace_text(text: str, replacements: dict[str, str]) -> str:
@@ -120,17 +127,17 @@ def _replace_text(text: str, replacements: dict[str, str]) -> str:
     return result
 
 
-def _collapse_placeholder_company_suffix(text: str) -> str:
-    return re.sub(
-        r"(\[\[COMPANY_\d{3}\]\])\s+"
-        r"(?:International\s+)?(?:Limited|Ltd\.?|LLC|LLP|Inc\.?|Corporation|Company Limited)\b",
-        r"\1",
-        text,
-        flags=re.IGNORECASE,
-    )
+def _set_paragraph_visible_text(paragraph: Paragraph, text: str) -> None:
+    text_nodes = paragraph._p.xpath(".//w:t")
+    if text_nodes:
+        text_nodes[0].text = text
+        for node in text_nodes[1:]:
+            node.text = ""
+        return
+    paragraph.add_run(text)
 
 
-def _replace_docx_xml_text(path: Path, replacements: dict[str, str]) -> None:
+def _replace_docx_xml_text(path: Path, replacements: dict[str, str], include_attributes: bool) -> None:
     temp_path = path.with_suffix(f"{path.suffix}.tmp")
     with zipfile.ZipFile(path, "r") as source_zip, zipfile.ZipFile(temp_path, "w", zipfile.ZIP_DEFLATED) as target_zip:
         for item in source_zip.infolist():
@@ -138,11 +145,24 @@ def _replace_docx_xml_text(path: Path, replacements: dict[str, str]) -> None:
             if item.filename.startswith("word/") and item.filename.endswith(".xml"):
                 text = data.decode("utf-8")
                 for source, target in replacements.items():
-                    text = text.replace(escape(source, quote=False), escape(target, quote=False))
+                    source_xml = escape(source, quote=False)
+                    target_xml = escape(target, quote=False)
+                    if include_attributes:
+                        text = text.replace(source_xml, target_xml)
+                    else:
+                        text = _replace_visible_xml_text(text, source_xml, target_xml)
                 data = text.encode("utf-8")
             target_zip.writestr(item, data)
     path.write_bytes(temp_path.read_bytes())
     temp_path.unlink(missing_ok=True)
+
+
+def _replace_visible_xml_text(xml: str, source: str, target: str) -> str:
+    return re.sub(
+        r"(<w:t\b[^>]*>)(.*?)(</w:t>)",
+        lambda match: f"{match.group(1)}{match.group(2).replace(source, target)}{match.group(3)}",
+        xml,
+    )
 
 
 def _convert_doc_to_docx(source: Path, target: Path) -> None:
