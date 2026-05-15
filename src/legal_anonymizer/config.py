@@ -15,7 +15,7 @@ class WorkspaceFolders:
 
 FOLDERS = WorkspaceFolders()
 
-INPUT_EXTENSIONS = {".docx", ".pdf", ".txt", ".md"}
+INPUT_EXTENSIONS = {".doc", ".docx", ".pdf", ".txt", ".md"}
 RESTORE_EXTENSIONS = {".docx", ".txt", ".md"}
 
 PLACEHOLDER_PREFIXES = {
@@ -30,4 +30,3 @@ PLACEHOLDER_PREFIXES = {
     "EMAIL": "EMAIL",
     "USCC": "USCC",
 }
-

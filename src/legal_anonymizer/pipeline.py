@@ -6,6 +6,7 @@ from pathlib import Path
 from legal_anonymizer.anonymizer import anonymize_text
 from legal_anonymizer.document_io import read_text_document, write_text_document
 from legal_anonymizer.engines.pipeline import detect_entities_multi_engine
+from legal_anonymizer.learning import detect_learned_entities
 from legal_anonymizer.mapping_store import (
     build_mapping_table,
     export_mapping_xlsx,
@@ -41,6 +42,7 @@ class RestoredFileResult:
 def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFileResult:
     text = read_text_document(source_path)
     entities = detect_entities_multi_engine(text)
+    entities.extend(detect_learned_entities(text, workspace.mappings))
     table = build_mapping_table(source_path.name, entities)
     anonymized_text = anonymize_text(text, table)
     risk_findings = scan_anonymized_text(anonymized_text)
