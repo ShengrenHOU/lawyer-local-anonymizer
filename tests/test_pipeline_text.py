@@ -1,4 +1,5 @@
 from legal_anonymizer.document_io import read_text_document, write_text_document
+from legal_anonymizer.engines.presidio_light import PresidioLightEngine
 from legal_anonymizer.mapping_store import build_mapping_table
 from legal_anonymizer.models import Entity
 from legal_anonymizer.pipeline import (
@@ -110,3 +111,33 @@ def test_pipeline_quarantines_when_second_pass_finds_residual_risk(tmp_path):
     assert anonymized.output_path.parent == workspace.review_required
     assert anonymized.risk_findings
     assert "暂勿上传" in anonymized.risk_report_path.read_text(encoding="utf-8")
+
+
+def test_pipeline_quarantines_when_core_detection_engine_fails(tmp_path, monkeypatch):
+    def fail_detect(self, text):
+        raise RuntimeError("broken")
+
+    monkeypatch.setattr(PresidioLightEngine, "detect", fail_detect)
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "demo.txt"
+    source.write_text("Party A: Alice Chen", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert not anonymized.upload_allowed
+    assert anonymized.output_path.parent == workspace.review_required
+    assert "detection_engine_failed" in anonymized.risk_report_path.read_text(encoding="utf-8")
+
+
+def test_restore_with_missing_placeholder_goes_to_review_required(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "demo.txt"
+    source.write_text("Party A: Alice Chen, phone: 13800000000.", encoding="utf-8")
+    anonymized = anonymize_file(source, workspace)
+    damaged_ai_result = anonymized.anonymized_text.replace("[[PHONE_001]]", "the phone")
+
+    restored = restore_pasted_text(damaged_ai_result, anonymized.mapping_path, workspace)
+
+    assert restored.review_required
+    assert restored.missing_placeholders == ["[[PHONE_001]]"]
+    assert restored.output_path.parent == workspace.review_required

@@ -27,6 +27,9 @@ class MappingTable:
     source_name: str
     created_at: str
     mappings: list[PlaceholderMapping] = field(default_factory=list)
+    source_sha256: str | None = None
+    source_size: int | None = None
+    anonymized_sha256: str | None = None
 
 
 @dataclass(frozen=True)

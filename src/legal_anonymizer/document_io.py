@@ -66,9 +66,7 @@ def restore_docx_document(source: Path, target: Path, table: MappingTable) -> Pa
     document = Document(str(target))
     for paragraph in _iter_docx_paragraphs(document):
         if "[[" in paragraph.text:
-            replaced = _replace_text(paragraph.text, replacements)
-            if replaced != paragraph.text:
-                _set_paragraph_visible_text(paragraph, replaced)
+            _replace_paragraph_text(paragraph, replacements)
     document.save(str(target))
     return target
 
@@ -110,10 +108,7 @@ def _iter_cell_paragraphs(cell: _Cell) -> Iterable[Paragraph]:
 def _replace_paragraph_text(paragraph: Paragraph, replacements: dict[str, str]) -> None:
     if not paragraph.text:
         return
-    original = paragraph.text
-    if any(source in original for source in replacements):
-        replaced = _replace_text(original, replacements)
-        _set_paragraph_visible_text(paragraph, replaced)
+    if _replace_text_nodes(paragraph, replacements):
         return
     for run in paragraph.runs:
         run.text = _replace_text(run.text, replacements)
@@ -127,14 +122,88 @@ def _replace_text(text: str, replacements: dict[str, str]) -> str:
     return result
 
 
-def _set_paragraph_visible_text(paragraph: Paragraph, text: str) -> None:
+def _replace_text_nodes(paragraph: Paragraph, replacements: dict[str, str]) -> bool:
     text_nodes = paragraph._p.xpath(".//w:t")
-    if text_nodes:
-        text_nodes[0].text = text
-        for node in text_nodes[1:]:
-            node.text = ""
-        return
-    paragraph.add_run(text)
+    if not text_nodes:
+        return False
+
+    node_texts = [node.text or "" for node in text_nodes]
+    segments: list[tuple[int, int, int]] = []
+    cursor = 0
+    for index, text in enumerate(node_texts):
+        end = cursor + len(text)
+        if text:
+            segments.append((cursor, end, index))
+        cursor = end
+
+    full_text = "".join(node_texts)
+    matches = _find_non_overlapping_matches(full_text, replacements)
+    if not matches:
+        return False
+
+    operations: list[list[tuple[int, int, str]]] = [[] for _ in node_texts]
+    for start, end, replacement in matches:
+        start_node, start_offset = _locate_text_node(segments, start, is_end=False)
+        end_node, end_offset = _locate_text_node(segments, end, is_end=True)
+        if start_node == end_node:
+            operations[start_node].append((start_offset, end_offset, replacement))
+            continue
+        operations[start_node].append((start_offset, len(node_texts[start_node]), replacement))
+        for node_index in range(start_node + 1, end_node):
+            operations[node_index].append((0, len(node_texts[node_index]), ""))
+        operations[end_node].append((0, end_offset, ""))
+
+    for index, ops in enumerate(operations):
+        if not ops:
+            continue
+        text_nodes[index].text = _apply_node_operations(node_texts[index], ops)
+    return True
+
+
+def _find_non_overlapping_matches(text: str, replacements: dict[str, str]) -> list[tuple[int, int, str]]:
+    candidates: list[tuple[int, int, str]] = []
+    for source, target in sorted(replacements.items(), key=lambda item: -len(item[0])):
+        if not source:
+            continue
+        start = 0
+        while True:
+            index = text.find(source, start)
+            if index == -1:
+                break
+            candidates.append((index, index + len(source), target))
+            start = index + len(source)
+
+    selected: list[tuple[int, int, str]] = []
+    occupied: list[tuple[int, int]] = []
+    for start, end, target in sorted(candidates, key=lambda item: (item[0], -(item[1] - item[0]))):
+        if any(start < used_end and end > used_start for used_start, used_end in occupied):
+            continue
+        selected.append((start, end, target))
+        occupied.append((start, end))
+    return sorted(selected, key=lambda item: item[0])
+
+
+def _locate_text_node(segments: list[tuple[int, int, int]], position: int, is_end: bool) -> tuple[int, int]:
+    for start, end, index in segments:
+        if is_end:
+            if start < position <= end:
+                return index, position - start
+        elif start <= position < end:
+            return index, position - start
+    raise ValueError("Unable to locate Word text node for replacement.")
+
+
+def _apply_node_operations(text: str, operations: list[tuple[int, int, str]]) -> str:
+    parts: list[str] = []
+    cursor = 0
+    for start, end, replacement in sorted(operations, key=lambda item: item[0]):
+        if start < cursor:
+            continue
+        parts.append(text[cursor:start])
+        parts.append(replacement)
+        cursor = end
+    parts.append(text[cursor:])
+    return "".join(parts)
 
 
 def _replace_docx_xml_text(path: Path, replacements: dict[str, str], include_attributes: bool) -> None:

@@ -1,4 +1,7 @@
-from legal_anonymizer.engines.pipeline import detect_entities_multi_engine
+import pytest
+
+from legal_anonymizer.engines.pipeline import DetectionEngineError, detect_entities_multi_engine
+from legal_anonymizer.engines.presidio_light import PresidioLightEngine
 
 
 def test_multi_engine_merges_sources_for_same_value():
@@ -23,3 +26,12 @@ def test_multi_engine_detects_english_legal_surface():
     assert ("COMPANY", "Rockit Global Limited") in values
     assert ("ADDRESS", "22 Irongate Road East, Rd 5, Hastings, 4175, New Zealand") in values
 
+
+def test_core_engine_failure_is_not_silent(monkeypatch):
+    def fail_detect(self, text):
+        raise RuntimeError("broken")
+
+    monkeypatch.setattr(PresidioLightEngine, "detect", fail_detect)
+
+    with pytest.raises(DetectionEngineError):
+        detect_entities_multi_engine("Alice Chen")

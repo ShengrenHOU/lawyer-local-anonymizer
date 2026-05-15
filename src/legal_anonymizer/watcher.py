@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -20,6 +21,7 @@ class LegalAnonymizerHandler(FileSystemEventHandler):
         self.workspace = workspace
         self.status = status
         self._processed: set[Path] = set()
+        self._retry_counts: dict[Path, int] = {}
 
     def on_created(self, event: FileCreatedEvent) -> None:
         if not event.is_directory:
@@ -65,15 +67,28 @@ class LegalAnonymizerHandler(FileSystemEventHandler):
                 self.status(f"开始还原: {path.name}")
                 result = restore_file_auto(path, self.workspace)
                 mark_processed(path, self.workspace.mappings)
-                if result.unknown_placeholders:
-                    self.status("已还原，但存在无法识别的占位符，请人工复核。")
+                if result.review_required:
+                    self.status("已还原，但 AI 结果中存在缺失或无法识别的占位符，已放入需要复核目录。")
                 else:
                     self.status(f"已还原 AI 结果文件: {result.output_path.name}")
             elif path.parent == pending:
                 self.status(f"暂不支持该文件类型: {path.name}。请使用 .docx、可复制 PDF、txt 或 md。")
         except Exception as exc:
             self._processed.discard(path)
-            self.status(f"处理失败: {path.name}: {exc}")
+            if isinstance(exc, TimeoutError) and self._schedule_retry(path):
+                self.status(f"处理暂未完成，文件可能仍在复制或被 Word 占用，稍后自动重试: {path.name}")
+            else:
+                self.status(f"处理失败: {path.name}: {exc}")
+
+    def _schedule_retry(self, path: Path, max_retries: int = 3) -> bool:
+        count = self._retry_counts.get(path, 0)
+        if count >= max_retries:
+            return False
+        self._retry_counts[path] = count + 1
+        timer = threading.Timer(3 * (count + 1), lambda: self.handle_path(path))
+        timer.daemon = True
+        timer.start()
+        return True
 
 
 def start_observer(workspace: WorkspacePaths, status: StatusCallback) -> Observer:
@@ -86,14 +101,23 @@ def start_observer(workspace: WorkspacePaths, status: StatusCallback) -> Observe
     return observer
 
 
-def _wait_until_stable(path: Path, attempts: int = 10, delay: float = 0.4) -> None:
+def _wait_until_stable(path: Path, attempts: int = 20, delay: float = 0.5) -> None:
     previous_size = -1
     for _ in range(attempts):
         if not path.exists():
             time.sleep(delay)
             continue
         current_size = path.stat().st_size
-        if current_size == previous_size:
+        if current_size == previous_size and _can_open_for_read(path):
             return
         previous_size = current_size
         time.sleep(delay)
+    raise TimeoutError("File is not stable or readable yet.")
+
+
+def _can_open_for_read(path: Path) -> bool:
+    try:
+        with path.open("rb"):
+            return True
+    except OSError:
+        return False

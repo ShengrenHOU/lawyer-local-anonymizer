@@ -179,8 +179,8 @@ class MainWindow(QMainWindow):
         self.set_status(f"已清空 {removed} 条本地学习记忆。")
 
     def _finish_restore(self, result) -> None:
-        if result.unknown_placeholders:
-            QMessageBox.warning(self, "需要人工复核", "AI 回复中存在无法识别的占位符。")
+        if result.review_required:
+            QMessageBox.warning(self, "需要人工复核", "AI 回复中存在缺失或无法识别的占位符，结果已放入“需要复核”。")
         self.set_status(f"已还原: {result.output_path.name}")
 
 

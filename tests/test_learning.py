@@ -1,3 +1,5 @@
+import json
+
 from legal_anonymizer.learning import (
     clear_learning_memory,
     detect_learned_entities,
@@ -20,6 +22,31 @@ def test_learned_entities_reuse_previous_mapping(tmp_path):
     assert [(item.category, item.value, item.source) for item in entities] == [
         ("COMPANY", "Acme Holdings", "local_memory")
     ]
+    memory = json.loads((tmp_path / "local-memory.json").read_text(encoding="utf-8"))
+    assert memory[0]["enabled"] is True
+    assert memory[0]["occurrences"] == 1
+    assert memory[0]["source_names"] == ["old.txt"]
+
+
+def test_disabled_learning_memory_is_not_reused(tmp_path):
+    (tmp_path / "local-memory.json").write_text(
+        json.dumps(
+            [
+                {
+                    "category": "COMPANY",
+                    "value": "Acme Holdings",
+                    "enabled": False,
+                    "occurrences": 3,
+                    "source_names": ["old.txt"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    entities = detect_learned_entities("Acme Holdings signed again.", tmp_path)
+
+    assert entities == []
 
 
 def test_learning_memory_can_be_cleared_without_deleting_mapping(tmp_path):

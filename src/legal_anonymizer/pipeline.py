@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import shutil
 from pathlib import Path
 
 from legal_anonymizer.anonymizer import anonymize_text
@@ -10,11 +11,12 @@ from legal_anonymizer.document_io import (
     restore_docx_document,
     write_text_document,
 )
-from legal_anonymizer.engines.pipeline import detect_entities_multi_engine
+from legal_anonymizer.engines.pipeline import DetectionEngineError, detect_entities_multi_engine
 from legal_anonymizer.learning import detect_learned_entities, learn_from_table
 from legal_anonymizer.mapping_store import (
     build_mapping_table,
     export_mapping_xlsx,
+    file_sha256,
     load_mapping_table,
     save_mapping_table,
     _safe_stem,
@@ -44,13 +46,19 @@ class RestoredFileResult:
     output_path: Path
     unknown_placeholders: list[str]
     missing_placeholders: list[str]
+    review_required: bool = False
 
 
 def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFileResult:
     text = read_text_document(source_path)
-    entities = detect_entities_multi_engine(text)
+    try:
+        entities = detect_entities_multi_engine(text)
+    except DetectionEngineError as exc:
+        return _write_detection_failure_result(source_path, workspace, text, str(exc))
     entities.extend(detect_learned_entities(text, workspace.mappings))
     table = build_mapping_table(source_path.name, entities)
+    table.source_sha256 = file_sha256(source_path)
+    table.source_size = source_path.stat().st_size
     anonymized_text = anonymize_text(text, table)
     risk_findings = scan_anonymized_text(anonymized_text)
     upload_allowed = not risk_findings
@@ -61,10 +69,6 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     risk_report_path = workspace.mappings / f"{source_path.stem}.risk-report.txt"
     task_summary_path = output_dir / f"{source_path.stem}.处理结果说明.txt"
     prompt_path = output_dir / f"{source_path.stem}.ai-prompt.txt"
-    mapping_path = save_mapping_table(workspace.mappings, table)
-    mapping_xlsx_path = export_mapping_xlsx(workspace.mappings, table)
-    learn_from_table(table, workspace.mappings)
-
     if source_path.suffix.lower() == ".docx":
         anonymize_docx_document(source_path, output_path, table)
         anonymized_text = read_text_document(output_path)
@@ -81,6 +85,10 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
             anonymize_docx_document(source_path, output_path, table)
         else:
             write_text_document(output_path, anonymized_text)
+    table.anonymized_sha256 = file_sha256(output_path)
+    mapping_path = save_mapping_table(workspace.mappings, table)
+    mapping_xlsx_path = export_mapping_xlsx(workspace.mappings, table)
+    learn_from_table(table, workspace.mappings)
     report_path.write_text(build_report(table), encoding="utf-8")
     risk_report_path.write_text(build_risk_report(risk_findings), encoding="utf-8")
     prompt_path.write_text(build_ai_prompt(), encoding="utf-8")
@@ -114,12 +122,15 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
 def restore_pasted_text(text: str, mapping_path: Path, workspace: WorkspacePaths) -> RestoredFileResult:
     table = load_mapping_table(mapping_path)
     restored = restore_text(text, table)
-    output_path = workspace.restored / f"{Path(table.source_name).stem}.restored.txt"
+    review_required = bool(restored.unknown_placeholders or restored.missing_placeholders)
+    output_dir = workspace.review_required if review_required else workspace.restored
+    output_path = output_dir / f"{Path(table.source_name).stem}.restored.txt"
     write_text_document(output_path, restored.restored_text)
     return RestoredFileResult(
         output_path=output_path,
         unknown_placeholders=restored.unknown_placeholders,
         missing_placeholders=restored.missing_placeholders,
+        review_required=review_required,
     )
 
 
@@ -182,7 +193,9 @@ def restore_file(source_path: Path, mapping_path: Path, workspace: WorkspacePath
     text = read_text_document(source_path)
     table = load_mapping_table(mapping_path)
     restored = restore_text(text, table)
-    output_path = workspace.restored / _restored_output_name(source_path)
+    review_required = bool(restored.unknown_placeholders or restored.missing_placeholders)
+    output_dir = workspace.review_required if review_required else workspace.restored
+    output_path = output_dir / _restored_output_name(source_path)
     if source_path.suffix.lower() == ".docx":
         restore_docx_document(source_path, output_path, table)
     else:
@@ -191,6 +204,7 @@ def restore_file(source_path: Path, mapping_path: Path, workspace: WorkspacePath
         output_path=output_path,
         unknown_placeholders=restored.unknown_placeholders,
         missing_placeholders=restored.missing_placeholders,
+        review_required=review_required,
     )
 
 
@@ -206,7 +220,62 @@ def _mapping_source_matches(mapping_path: Path, source_path: Path) -> bool:
         return False
     source_stem = source_path.stem.replace(".anonymized", "")
     table_stem = Path(table.source_name).stem
+    try:
+        source_hash = file_sha256(source_path)
+    except OSError:
+        source_hash = None
+    if source_hash and source_hash in {table.source_sha256, table.anonymized_sha256}:
+        return True
     return source_stem == table_stem or _safe_stem(source_stem) == _safe_stem(table_stem)
+
+
+def _write_detection_failure_result(
+    source_path: Path,
+    workspace: WorkspacePaths,
+    text: str,
+    message: str,
+) -> AnonymizedFileResult:
+    output_path = workspace.review_required / f"{source_path.stem}.needs-review{source_path.suffix}"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source_path, output_path)
+    table = build_mapping_table(source_path.name, [])
+    table.source_sha256 = file_sha256(source_path)
+    table.source_size = source_path.stat().st_size
+    table.anonymized_sha256 = file_sha256(output_path)
+    mapping_path = save_mapping_table(workspace.mappings, table)
+    mapping_xlsx_path = export_mapping_xlsx(workspace.mappings, table)
+    report_path = workspace.mappings / f"{source_path.stem}.report.txt"
+    risk_report_path = workspace.mappings / f"{source_path.stem}.risk-report.txt"
+    prompt_path = workspace.review_required / f"{source_path.stem}.ai-prompt.txt"
+    task_summary_path = workspace.review_required / f"{source_path.stem}.处理结果说明.txt"
+    risk_findings = [RiskFinding("SYSTEM", "detection_engine_failed", message)]
+    report_path.write_text("识别失败：本文件未完成匿名化。\n", encoding="utf-8")
+    risk_report_path.write_text(build_risk_report(risk_findings), encoding="utf-8")
+    prompt_path.write_text("本文件未通过本地匿名化检测，请勿上传给 AI。\n", encoding="utf-8")
+    task_summary_path.write_text(
+        _build_task_summary(
+            source_path=source_path,
+            output_path=output_path,
+            prompt_path=prompt_path,
+            mapping_xlsx_path=mapping_xlsx_path,
+            risk_report_path=risk_report_path,
+            upload_allowed=False,
+            risk_findings=risk_findings,
+        ),
+        encoding="utf-8",
+    )
+    return AnonymizedFileResult(
+        output_path=output_path,
+        mapping_path=mapping_path,
+        mapping_xlsx_path=mapping_xlsx_path,
+        report_path=report_path,
+        prompt_path=prompt_path,
+        risk_report_path=risk_report_path,
+        task_summary_path=task_summary_path,
+        anonymized_text=text,
+        risk_findings=risk_findings,
+        upload_allowed=False,
+    )
 
 
 def _build_task_summary(

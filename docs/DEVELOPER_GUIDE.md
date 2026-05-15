@@ -48,7 +48,11 @@ All entities are merged into a single case entity table. The mapping report and 
 
 `local-memory.json` is a separate local learning store under the mapping folder. It is intentionally separate from per-file mapping tables so a user can clear learning memory without breaking restoration for already processed files.
 
-For `.docx`, anonymization and restoration modify a copied Word document directly instead of flattening to text. Replacement covers body paragraphs, tables, headers, and footers. The implementation preserves document containers and most run formatting; if a sensitive value spans multiple Word runs, the affected paragraph may be collapsed into the first run as a fallback.
+For `.docx`, anonymization and restoration modify a copied Word document directly instead of flattening to text. Replacement covers body paragraphs, tables, headers, and footers. The implementation replaces across Word text nodes while preserving unrelated run boundaries and styles.
+
+Core detector failures are fail-closed: the file is routed to `02-需要复核-暂勿上传` instead of producing an uploadable result. Optional spaCy model absence remains a soft fallback.
+
+Restoration is also gated. If an AI result deletes a required placeholder or introduces an unknown placeholder, the restored output is written to the review folder and surfaced as requiring manual review.
 
 ## Release Checklist
 
@@ -60,7 +64,8 @@ For `.docx`, anonymization and restoration modify a copied Word document directl
 6. Confirm `.docx` input creates anonymized `.docx`; confirm text/PDF input creates text output.
 7. Confirm JSON mapping, Excel comparison table, report, risk report, prompt, and per-file result summary are generated.
 8. Restore a pasted AI response and a `.docx` AI result.
-9. Distribute the whole `dist\LegalAnonymizer\` folder through the agreed channel. Do not attach release zip files to GitHub unless explicitly requested.
+9. Confirm a damaged AI response with missing placeholders is routed to review.
+10. Distribute the whole `dist\LegalAnonymizer\` folder through the agreed channel. Do not attach release zip files to GitHub unless explicitly requested.
 
 ## External Sample Evaluation
 

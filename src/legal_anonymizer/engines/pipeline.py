@@ -7,6 +7,10 @@ from legal_anonymizer.engines.presidio_light import PresidioLightEngine
 from legal_anonymizer.models import Entity
 
 
+class DetectionEngineError(RuntimeError):
+    pass
+
+
 def detect_entities_multi_engine(text: str) -> list[Entity]:
     engines = [
         PresidioLightEngine(),
@@ -18,6 +22,8 @@ def detect_entities_multi_engine(text: str) -> list[Entity]:
         try:
             results.append(engine.detect(text))
         except Exception:
-            results.append([])
+            if isinstance(engine, OptionalSpacyNerEngine):
+                results.append([])
+                continue
+            raise DetectionEngineError(f"{engine.name} failed during local detection.") from None
     return merge_entities(results)
-

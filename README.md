@@ -7,7 +7,7 @@ It replaces sensitive information in Word, copyable PDF, and text files with sta
 ## What It Does
 
 - Runs locally on Windows.
-- Creates a simple five-folder workflow.
+- Creates a simple six-folder workflow.
 - Watches an input folder and anonymizes new files automatically.
 - Runs a second-pass leakage scan before allowing upload.
 - Uses a multi-engine detection pipeline: lightweight Presidio recognizers, optional spaCy NER, and legal-document rules.
@@ -16,8 +16,9 @@ It replaces sensitive information in Word, copyable PDF, and text files with sta
 - Generates a local JSON mapping file for restoration.
 - Generates a lawyer-readable Excel comparison table.
 - Keeps a local learning memory so repeated names, companies, and addresses are recognized more easily over time.
+- Stores local learning memory with enable flags, source names, and occurrence counts so bad learned entries can be governed instead of becoming permanent hidden rules.
 - Writes one per-file result summary explaining whether the output is uploadable and which mapping table belongs to it.
-- Restores AI output from downloaded files or pasted text.
+- Restores AI output from downloaded files or pasted text, and routes damaged AI results to the review folder if placeholders are missing or unknown.
 - Keeps original files unchanged.
 
 ## Folder Workflow
@@ -38,7 +39,7 @@ Only files in `02-已匿名化-可上传AI/` should be uploaded to AI tools.
 
 Never upload `99-本地映射表-不要上传/`; it contains the local mapping needed to restore real names and other sensitive values.
 
-If a file lands in `02-需要复核-暂勿上传/`, the automatic leakage scan found high-risk residual content. Do not upload that file to AI.
+If a file lands in `02-需要复核-暂勿上传/`, the automatic leakage scan found high-risk residual content, a core local detector failed, or an AI result damaged required placeholders. Do not upload that file to AI.
 
 ## Quick Start for End Users
 
@@ -146,10 +147,10 @@ The app intentionally avoids slow default Presidio NLP startup in the click-to-u
 
 Current local validation:
 
-- `pytest`: 24 tests passing
+- `pytest`: 31 tests passing
 - V2 leakage gate tests cover English legal headers, English addresses, Chinese party names, and acronym residuals
 - `ruff`: all checks passing
-- packaged smoke: built `LegalAnonymizer.exe` creates the five working folders under an isolated test user profile
+- packaged smoke: built `LegalAnonymizer.exe` creates the six working folders under an isolated test user profile
 
 ## License
 

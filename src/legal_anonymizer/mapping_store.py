@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
 from dataclasses import asdict
 from pathlib import Path
 
@@ -72,7 +73,18 @@ def load_mapping_table(path: Path) -> MappingTable:
         source_name=payload["source_name"],
         created_at=payload["created_at"],
         mappings=[PlaceholderMapping(**item) for item in payload["mappings"]],
+        source_sha256=payload.get("source_sha256"),
+        source_size=payload.get("source_size"),
+        anonymized_sha256=payload.get("anonymized_sha256"),
     )
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _safe_stem(stem: str) -> str:

@@ -1,6 +1,7 @@
 from legal_anonymizer.mapping_store import (
     build_mapping_table,
     export_mapping_xlsx,
+    file_sha256,
     load_mapping_table,
     save_mapping_table,
 )
@@ -23,12 +24,28 @@ def test_build_mapping_table_reuses_placeholder_for_same_entity():
 
 def test_save_and_load_mapping_table(tmp_path):
     table = build_mapping_table("合同.docx", [Entity("PERSON", "张三", 0, 2)])
+    table.source_sha256 = "abc"
+    table.source_size = 123
+    table.anonymized_sha256 = "def"
     path = save_mapping_table(tmp_path, table)
 
     loaded = load_mapping_table(path)
 
     assert loaded.source_name == "合同.docx"
     assert loaded.mappings[0].value == "张三"
+    assert loaded.source_sha256 == "abc"
+    assert loaded.source_size == 123
+    assert loaded.anonymized_sha256 == "def"
+
+
+def test_file_sha256_tracks_file_content(tmp_path):
+    path = tmp_path / "demo.txt"
+    path.write_text("hello", encoding="utf-8")
+
+    first = file_sha256(path)
+    path.write_text("hello2", encoding="utf-8")
+
+    assert first != file_sha256(path)
 
 
 def test_export_mapping_xlsx_has_original_and_anonymized_columns(tmp_path):

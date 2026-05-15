@@ -54,3 +54,28 @@ def test_docx_anonymize_collapses_company_suffix_split_across_runs(tmp_path):
     anonymized_text = read_text_document(anonymized.output_path)
     assert "International Limited" not in anonymized_text
     assert "[[COMPANY_" in anonymized_text
+
+
+def test_docx_replacement_preserves_unrelated_run_styles(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "mixed-style.docx"
+    document = Document()
+    paragraph = document.add_paragraph()
+    label = paragraph.add_run("FROM: ")
+    label.bold = True
+    name = paragraph.add_run("Alice Chen")
+    name.italic = True
+    tail = paragraph.add_run(" signs here.")
+    tail.underline = True
+    document.save(source)
+
+    anonymized = anonymize_file(source, workspace)
+
+    anonymized_doc = Document(anonymized.output_path)
+    runs = anonymized_doc.paragraphs[0].runs
+    assert runs[0].text == "FROM: "
+    assert runs[0].bold is True
+    assert "[[PERSON_" in runs[1].text
+    assert runs[1].italic is True
+    assert runs[2].text == " signs here."
+    assert runs[2].underline is True
