@@ -4,7 +4,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from legal_anonymizer.anonymizer import anonymize_text
-from legal_anonymizer.document_io import read_text_document, write_text_document
+from legal_anonymizer.document_io import (
+    anonymize_docx_document,
+    read_text_document,
+    restore_docx_document,
+    write_text_document,
+)
 from legal_anonymizer.engines.pipeline import detect_entities_multi_engine
 from legal_anonymizer.learning import detect_learned_entities, learn_from_table
 from legal_anonymizer.mapping_store import (
@@ -50,7 +55,7 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     upload_allowed = not risk_findings
 
     output_dir = workspace.anonymized if upload_allowed else workspace.review_required
-    output_path = output_dir / f"{source_path.stem}.anonymized.txt"
+    output_path = output_dir / _anonymized_output_name(source_path)
     report_path = workspace.mappings / f"{source_path.stem}.report.txt"
     risk_report_path = workspace.mappings / f"{source_path.stem}.risk-report.txt"
     task_summary_path = output_dir / f"{source_path.stem}.处理结果说明.txt"
@@ -59,7 +64,22 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     mapping_xlsx_path = export_mapping_xlsx(workspace.mappings, table)
     learn_from_table(table, workspace.mappings)
 
-    write_text_document(output_path, anonymized_text)
+    if source_path.suffix.lower() == ".docx":
+        anonymize_docx_document(source_path, output_path, table)
+        anonymized_text = read_text_document(output_path)
+    else:
+        write_text_document(output_path, anonymized_text)
+    risk_findings = scan_anonymized_text(anonymized_text)
+    upload_allowed = not risk_findings
+    if output_path.parent != (workspace.anonymized if upload_allowed else workspace.review_required):
+        output_dir = workspace.anonymized if upload_allowed else workspace.review_required
+        output_path = output_dir / _anonymized_output_name(source_path)
+        prompt_path = output_dir / f"{source_path.stem}.ai-prompt.txt"
+        task_summary_path = output_dir / f"{source_path.stem}.处理结果说明.txt"
+        if source_path.suffix.lower() == ".docx":
+            anonymize_docx_document(source_path, output_path, table)
+        else:
+            write_text_document(output_path, anonymized_text)
     report_path.write_text(build_report(table), encoding="utf-8")
     risk_report_path.write_text(build_risk_report(risk_findings), encoding="utf-8")
     prompt_path.write_text(build_ai_prompt(), encoding="utf-8")
@@ -154,8 +174,11 @@ def restore_file(source_path: Path, mapping_path: Path, workspace: WorkspacePath
     text = read_text_document(source_path)
     table = load_mapping_table(mapping_path)
     restored = restore_text(text, table)
-    output_path = workspace.restored / f"{source_path.stem}.restored.txt"
-    write_text_document(output_path, restored.restored_text)
+    output_path = workspace.restored / _restored_output_name(source_path)
+    if source_path.suffix.lower() == ".docx":
+        restore_docx_document(source_path, output_path, table)
+    else:
+        write_text_document(output_path, restored.restored_text)
     return RestoredFileResult(
         output_path=output_path,
         unknown_placeholders=restored.unknown_placeholders,
@@ -215,3 +238,16 @@ def _build_task_summary(
         categories = sorted({finding.category for finding in risk_findings})
         lines.append(f"疑似风险类别: {', '.join(categories)}")
     return "\n".join(lines) + "\n"
+
+
+def _anonymized_output_name(source_path: Path) -> str:
+    if source_path.suffix.lower() == ".docx":
+        return f"{source_path.stem}.anonymized.docx"
+    return f"{source_path.stem}.anonymized.txt"
+
+
+def _restored_output_name(source_path: Path) -> str:
+    if source_path.suffix.lower() == ".docx":
+        stem = source_path.stem.replace(".anonymized", "")
+        return f"{stem}.restored.docx"
+    return f"{source_path.stem}.restored.txt"

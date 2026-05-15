@@ -18,7 +18,7 @@ def evaluate(paths: list[Path], output_root: Path) -> list[dict[str, object]]:
         local_source.write_bytes(source.read_bytes())
         original_text = read_text_document(local_source)
         result = anonymize_file(local_source, workspace)
-        anonymized_text = result.output_path.read_text(encoding="utf-8")
+        anonymized_text = read_text_document(result.output_path)
         placeholders = anonymized_text.count("[[")
         original_length = len(original_text)
         anonymized_length = len(anonymized_text)
@@ -58,4 +58,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

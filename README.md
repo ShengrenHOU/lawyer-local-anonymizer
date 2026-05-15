@@ -2,7 +2,7 @@
 
 Legal Anonymizer is a local-first reversible anonymization tool for lawyers who want to use AI chat tools without uploading raw client information.
 
-It replaces sensitive information in Word, copyable PDF, and text files with stable placeholders such as `[[PERSON_001]]` and `[[COMPANY_001]]`. After the AI response comes back, the app restores those placeholders locally using a private mapping file that never needs to be uploaded.
+It replaces sensitive information in Word, copyable PDF, and text files with stable placeholders such as `[[PERSON_001]]` and `[[COMPANY_001]]`. For `.docx` files, it writes an anonymized `.docx` and restores back to `.docx` while preserving most Word layout, tables, headers, footers, and run formatting. After the AI response comes back, the app restores placeholders locally using a private mapping file that never needs to be uploaded.
 
 ## What It Does
 
@@ -12,6 +12,7 @@ It replaces sensitive information in Word, copyable PDF, and text files with sta
 - Runs a second-pass leakage scan before allowing upload.
 - Uses a multi-engine detection pipeline: lightweight Presidio recognizers, optional spaCy NER, and legal-document rules.
 - Generates AI-safe files for Kimi, ChatGPT, or similar tools.
+- Keeps `.docx` anonymization and restoration in Word format where possible.
 - Generates a local JSON mapping file for restoration.
 - Generates a lawyer-readable Excel comparison table.
 - Keeps a local learning memory so repeated names, companies, and addresses are recognized more easily over time.
@@ -53,7 +54,7 @@ Full user guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
 
 Input anonymization:
 
-- `.docx`
+- `.docx`, output as anonymized `.docx`
 - `.doc`, if Microsoft Word is installed locally for conversion; otherwise save as `.docx` first
 - copyable `.pdf`
 - `.txt`
@@ -61,7 +62,7 @@ Input anonymization:
 
 AI result restoration:
 
-- `.docx`
+- `.docx`, restored as `.docx`
 - `.txt`
 - `.md`
 - pasted text
@@ -145,7 +146,7 @@ The app intentionally avoids slow default Presidio NLP startup in the click-to-u
 
 Current local validation:
 
-- `pytest`: 22 tests passing
+- `pytest`: 24 tests passing
 - V2 leakage gate tests cover English legal headers, English addresses, Chinese party names, and acronym residuals
 - `ruff`: all checks passing
 - packaged smoke: built `LegalAnonymizer.exe` creates the five working folders under an isolated test user profile

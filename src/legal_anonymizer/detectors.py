@@ -54,6 +54,13 @@ SINGLE_VALUE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"(?:China|PRC|New Zealand|Shanghai|Beijing|Hastings)\b"
         ),
     ),
+    (
+        "ADDRESS",
+        re.compile(
+            r"\b\d{1,6}[A-Za-z0-9\s&/.,#-]{0,90}?"
+            r"(?:Road|Rd|Street|St|Avenue|Ave|Lane|Ln|Drive|Dr|Center|Centre|Tower|Floor|F)\b"
+        ),
+    ),
 )
 
 CONTEXT_CAPTURE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (

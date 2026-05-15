@@ -13,7 +13,7 @@ src/legal_anonymizer/
   mapping_store.py   JSON mapping and Excel comparison table
   anonymizer.py      text replacement
   restore.py         placeholder restore
-  document_io.py     doc/docx/pdf/text IO
+  document_io.py     doc/docx/pdf/text IO plus docx in-place replacement helpers
   pipeline.py        high-level anonymize/restore flows
   watcher.py         folder watcher
   gui.py             PySide6 desktop UI
@@ -48,6 +48,8 @@ All entities are merged into a single case entity table. The mapping report and 
 
 `local-memory.json` is a separate local learning store under the mapping folder. It is intentionally separate from per-file mapping tables so a user can clear learning memory without breaking restoration for already processed files.
 
+For `.docx`, anonymization and restoration modify a copied Word document directly instead of flattening to text. Replacement covers body paragraphs, tables, headers, and footers. The implementation preserves document containers and most run formatting; if a sensitive value spans multiple Word runs, the affected paragraph may be collapsed into the first run as a fallback.
+
 ## Release Checklist
 
 1. Run tests and lint.
@@ -55,9 +57,10 @@ All entities are merged into a single case entity table. The mapping report and 
 3. Start `dist\LegalAnonymizer\LegalAnonymizer.exe`.
 4. Confirm the workspace folders are created.
 5. Put a sample file into `01-待匿名化`.
-6. Confirm anonymized output, JSON mapping, Excel comparison table, report, risk report, prompt, and per-file result summary are generated.
-7. Restore a pasted AI response.
-8. Distribute the whole `dist\LegalAnonymizer\` folder through the agreed channel. Do not attach release zip files to GitHub unless explicitly requested.
+6. Confirm `.docx` input creates anonymized `.docx`; confirm text/PDF input creates text output.
+7. Confirm JSON mapping, Excel comparison table, report, risk report, prompt, and per-file result summary are generated.
+8. Restore a pasted AI response and a `.docx` AI result.
+9. Distribute the whole `dist\LegalAnonymizer\` folder through the agreed channel. Do not attach release zip files to GitHub unless explicitly requested.
 
 ## External Sample Evaluation
 
