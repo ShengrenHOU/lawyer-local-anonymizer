@@ -131,12 +131,13 @@ def build_risk_report(findings: list[RiskFinding]) -> str:
         "自动漏扫结果: 未通过，文件已进入“需要复核-暂勿上传”。",
         "请不要上传该文件给 AI。",
         "",
-        "高风险残留:",
+        "高风险提示:",
     ]
-    for finding in findings:
-        lines.append(f"- {finding.category}: {finding.value} ({finding.reason})")
+    for index, finding in enumerate(findings, start=1):
+        detail = f"{finding.value}: " if _can_echo_finding_value(finding) else ""
+        lines.append(f"- {index}. {finding.category}: {detail}{finding.reason}")
     lines.append("")
-    lines.append("处理建议: 将上述内容加入规则或对照表后重新匿名化。")
+    lines.append("处理建议: 请在本地复核文件，不要直接上传 AI。")
     return "\n".join(lines) + "\n"
 
 
@@ -155,3 +156,7 @@ def _dedupe_findings(findings: list[RiskFinding]) -> list[RiskFinding]:
 def _is_safe_uppercase_term(value: str) -> bool:
     normalized = value.strip().strip("\"'“”").upper()
     return normalized in SAFE_UPPERCASE_TERMS
+
+
+def _can_echo_finding_value(finding: RiskFinding) -> bool:
+    return finding.category == "SYSTEM" or finding.category.startswith("UNSUPPORTED_")

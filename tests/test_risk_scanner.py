@@ -1,4 +1,4 @@
-from legal_anonymizer.risk_scanner import scan_anonymized_text
+from legal_anonymizer.risk_scanner import build_risk_report, scan_anonymized_text
 
 
 def test_second_pass_flags_chinese_company_and_address_residuals():
@@ -17,3 +17,13 @@ def test_second_pass_flags_chinese_party_name_residuals():
     findings = scan_anonymized_text(text)
 
     assert any(finding.category == "PERSON" for finding in findings)
+
+
+def test_risk_report_does_not_echo_sensitive_values():
+    text = "甲方：张三"
+    findings = scan_anonymized_text(text)
+
+    report = build_risk_report(findings)
+
+    assert "张三" not in report
+    assert "PERSON" in report

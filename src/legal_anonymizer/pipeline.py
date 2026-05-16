@@ -9,6 +9,7 @@ from legal_anonymizer.document_io import (
     anonymize_docx_document,
     read_text_document,
     restore_docx_document,
+    scan_docx_unsupported_parts,
     write_text_document,
 )
 from legal_anonymizer.engines.pipeline import DetectionEngineError, detect_entities_multi_engine
@@ -51,6 +52,7 @@ class RestoredFileResult:
 
 def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFileResult:
     text = read_text_document(source_path)
+    structural_findings = _scan_source_structure(source_path)
     try:
         entities = detect_entities_multi_engine(text)
     except DetectionEngineError as exc:
@@ -60,7 +62,7 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     table.source_sha256 = file_sha256(source_path)
     table.source_size = source_path.stat().st_size
     anonymized_text = anonymize_text(text, table)
-    risk_findings = scan_anonymized_text(anonymized_text)
+    risk_findings = [*structural_findings, *scan_anonymized_text(anonymized_text)]
     upload_allowed = not risk_findings
 
     output_dir = workspace.anonymized if upload_allowed else workspace.review_required
@@ -74,7 +76,7 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
         anonymized_text = read_text_document(output_path)
     else:
         write_text_document(output_path, anonymized_text)
-    risk_findings = scan_anonymized_text(anonymized_text)
+    risk_findings = [*structural_findings, *scan_anonymized_text(anonymized_text)]
     upload_allowed = not risk_findings
     if output_path.parent != (workspace.anonymized if upload_allowed else workspace.review_required):
         output_dir = workspace.anonymized if upload_allowed else workspace.review_required
@@ -117,6 +119,19 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
         risk_findings=risk_findings,
         upload_allowed=upload_allowed,
     )
+
+
+def _scan_source_structure(source_path: Path) -> list[RiskFinding]:
+    if source_path.suffix.lower() != ".docx":
+        return []
+    return [
+        RiskFinding(
+            category=finding.category,
+            value=finding.part,
+            reason=finding.reason,
+        )
+        for finding in scan_docx_unsupported_parts(source_path)
+    ]
 
 
 def restore_pasted_text(text: str, mapping_path: Path, workspace: WorkspacePaths) -> RestoredFileResult:

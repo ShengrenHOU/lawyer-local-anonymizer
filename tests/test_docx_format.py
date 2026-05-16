@@ -1,6 +1,9 @@
+import base64
+import zipfile
+
 from docx import Document
 
-from legal_anonymizer.document_io import read_text_document
+from legal_anonymizer.document_io import read_text_document, scan_docx_unsupported_parts
 from legal_anonymizer.pipeline import anonymize_file, restore_file_auto
 from legal_anonymizer.workspace import create_workspace
 
@@ -79,3 +82,45 @@ def test_docx_replacement_preserves_unrelated_run_styles(tmp_path):
     assert runs[1].italic is True
     assert runs[2].text == " signs here."
     assert runs[2].underline is True
+
+
+def test_docx_reader_includes_additional_word_xml_parts(tmp_path):
+    source = tmp_path / "comments.docx"
+    document = Document()
+    document.add_paragraph("Body text")
+    document.save(source)
+    with zipfile.ZipFile(source, "a", zipfile.ZIP_DEFLATED) as package:
+        package.writestr(
+            "word/comments.xml",
+            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="0"><w:p><w:r><w:t>Secret Comment Limited</w:t></w:r></w:p></w:comment>
+</w:comments>""",
+        )
+
+    text = read_text_document(source)
+
+    assert "Secret Comment Limited" in text
+
+
+def test_docx_with_image_is_forced_to_review(tmp_path):
+    workspace = create_workspace(tmp_path)
+    source = workspace.pending / "with-image.docx"
+    image_path = tmp_path / "tiny.png"
+    image_path.write_bytes(
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        )
+    )
+    document = Document()
+    document.add_paragraph("Rockit Trading (Shanghai) Co., Ltd.")
+    document.add_picture(str(image_path))
+    document.save(source)
+
+    result = anonymize_file(source, workspace)
+    structural_findings = scan_docx_unsupported_parts(source)
+
+    assert structural_findings
+    assert result.output_path.parent == workspace.review_required
+    assert not result.upload_allowed
+    assert any(finding.category == "UNSUPPORTED_IMAGE" for finding in result.risk_findings)

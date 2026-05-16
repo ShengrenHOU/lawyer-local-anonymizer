@@ -4,7 +4,8 @@ import tempfile
 import zipfile
 import shutil
 import re
-from html import escape
+from dataclasses import dataclass
+from html import escape, unescape
 from pathlib import Path
 from typing import Iterable
 
@@ -17,14 +18,20 @@ from docx.text.paragraph import Paragraph
 from legal_anonymizer.models import MappingTable
 
 
+@dataclass(frozen=True)
+class UnsupportedDocxFinding:
+    category: str
+    part: str
+    reason: str
+
+
 def read_text_document(path: Path) -> str:
     path = Path(path)
     suffix = path.suffix.lower()
     if suffix in {".txt", ".md"}:
         return path.read_text(encoding="utf-8")
     if suffix == ".docx":
-        document = Document(str(path))
-        return "\n".join(paragraph.text for paragraph in _iter_docx_paragraphs(document))
+        return _read_docx_all_text(path)
     if suffix == ".doc":
         with tempfile.TemporaryDirectory(prefix="legal-anonymizer-doc-") as temp_dir:
             docx_path = Path(temp_dir) / f"{path.stem}.docx"
@@ -35,6 +42,60 @@ def read_text_document(path: Path) -> str:
         with fitz.open(str(path)) as pdf:
             return "\n".join(page.get_text("text") for page in pdf)
     raise ValueError(f"Unsupported document type: {suffix}")
+
+
+def scan_docx_unsupported_parts(path: Path) -> list[UnsupportedDocxFinding]:
+    """Find Word structures that cannot be safely anonymized automatically."""
+    findings: list[UnsupportedDocxFinding] = []
+    with zipfile.ZipFile(path, "r") as package:
+        names = set(package.namelist())
+        for name in sorted(names):
+            lower_name = name.lower()
+            if lower_name.startswith("word/media/"):
+                findings.append(
+                    UnsupportedDocxFinding(
+                        category="UNSUPPORTED_IMAGE",
+                        part=name,
+                        reason="document_contains_image",
+                    )
+                )
+            elif lower_name.startswith("word/embeddings/"):
+                findings.append(
+                    UnsupportedDocxFinding(
+                        category="UNSUPPORTED_EMBEDDED_OBJECT",
+                        part=name,
+                        reason="document_contains_embedded_object",
+                    )
+                )
+        for name in sorted(item for item in names if item.startswith("word/") and item.endswith(".xml")):
+            try:
+                xml = package.read(name).decode("utf-8")
+            except UnicodeDecodeError:
+                findings.append(
+                    UnsupportedDocxFinding(
+                        category="UNSUPPORTED_XML",
+                        part=name,
+                        reason="word_xml_part_is_not_utf8",
+                    )
+                )
+                continue
+            if "<w:delText" in xml or "<w:del " in xml:
+                findings.append(
+                    UnsupportedDocxFinding(
+                        category="UNSUPPORTED_TRACKED_DELETION",
+                        part=name,
+                        reason="document_contains_tracked_deleted_text",
+                    )
+                )
+            if "<o:OLEObject" in xml or "<w:object" in xml:
+                findings.append(
+                    UnsupportedDocxFinding(
+                        category="UNSUPPORTED_OLE_OBJECT",
+                        part=name,
+                        reason="document_contains_ole_object",
+                    )
+                )
+    return findings
 
 
 def write_text_document(path: Path, text: str) -> Path:
@@ -80,6 +141,29 @@ def _replace_docx_document(source: Path, target: Path, replacements: dict[str, s
     document.save(str(target))
     _replace_docx_xml_text(target, ordered, include_attributes=True)
     return target
+
+
+def _read_docx_all_text(path: Path) -> str:
+    texts: list[str] = []
+    document = Document(str(path))
+    texts.extend(paragraph.text for paragraph in _iter_docx_paragraphs(document) if paragraph.text)
+
+    with zipfile.ZipFile(path, "r") as package:
+        for name in sorted(package.namelist()):
+            if not name.startswith("word/") or not name.endswith(".xml"):
+                continue
+            try:
+                xml = package.read(name).decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            part_text = "\n".join(
+                unescape(match.group(1))
+                for match in re.finditer(r"<w:t\b[^>]*>(.*?)</w:t>", xml, flags=re.DOTALL)
+                if match.group(1)
+            )
+            if part_text:
+                texts.append(part_text)
+    return "\n".join(texts)
 
 
 def _iter_docx_paragraphs(document: DocxDocument) -> Iterable[Paragraph]:
