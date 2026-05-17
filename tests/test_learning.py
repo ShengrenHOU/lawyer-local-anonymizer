@@ -3,12 +3,15 @@ import json
 from legal_anonymizer.learning import (
     add_memory_entry,
     clear_learning_memory,
+    delete_memory_entry,
     detect_learned_entities,
     filter_whitelisted_entities,
     learn_from_table,
     learning_entry_count,
     memory_entries,
     mark_processed,
+    render_memory_rules_report,
+    set_memory_entry_enabled,
     was_processed,
 )
 from legal_anonymizer.mapping_store import build_mapping_table, save_mapping_table
@@ -73,6 +76,38 @@ def test_whitelist_memory_entry_removes_matching_entities(tmp_path):
     filtered = filter_whitelisted_entities(entities, tmp_path)
 
     assert [(item.category, item.value) for item in filtered] == [("PERSON", "Alice Chen")]
+
+
+def test_memory_entry_can_be_disabled_and_enabled(tmp_path):
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
+
+    set_memory_entry_enabled(tmp_path, "blacklist", "PROJECT", "Project Falcon", False)
+    assert detect_learned_entities("Project Falcon", tmp_path) == []
+
+    set_memory_entry_enabled(tmp_path, "blacklist", "PROJECT", "Project Falcon", True)
+    assert detect_learned_entities("Project Falcon", tmp_path)[0].source == "local_blacklist"
+
+
+def test_memory_entry_can_be_deleted(tmp_path):
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
+
+    deleted = delete_memory_entry(tmp_path, "blacklist", "PROJECT", "Project Falcon")
+
+    assert deleted
+    assert memory_entries(tmp_path) == []
+
+
+def test_memory_rules_report_is_lawyer_readable(tmp_path):
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
+    add_memory_entry(tmp_path, "CUSTOM", "Ordinary Course", "whitelist")
+
+    report = render_memory_rules_report(tmp_path)
+
+    assert "本地规则中心" in report
+    assert "一定脱敏" in report
+    assert "Project Falcon" in report
+    assert "一定不脱敏" in report
+    assert "Ordinary Course" in report
 
 
 def test_legacy_learning_memory_without_mode_still_reuses_previous_mapping(tmp_path):

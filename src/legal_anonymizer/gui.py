@@ -23,7 +23,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from legal_anonymizer.learning import add_memory_entry, clear_learning_memory, learning_entry_count
+from legal_anonymizer.history import render_history_report
+from legal_anonymizer.learning import (
+    add_memory_entry,
+    clear_learning_memory,
+    learning_entry_count,
+    render_memory_rules_report,
+)
 from legal_anonymizer.mapping_store import load_mapping_table
 from legal_anonymizer.pipeline import (
     latest_prompt_path,
@@ -172,6 +178,10 @@ class MainWindow(QMainWindow):
         restore_paste_manual.clicked.connect(self.restore_pasted_manual)
         clear_memory = QPushButton("清空本地学习记忆")
         clear_memory.clicked.connect(self.clear_memory)
+        open_rules = QPushButton("本地规则")
+        open_rules.clicked.connect(self.open_rules_report)
+        open_history = QPushButton("历史项目")
+        open_history.clicked.connect(self.open_history_report)
         add_blacklist = QPushButton("加入一定脱敏")
         add_blacklist.setObjectName("primaryButton")
         add_blacklist.clicked.connect(lambda: self.add_memory_rule("blacklist"))
@@ -221,10 +231,19 @@ class MainWindow(QMainWindow):
             copy_prompt,
             restore_paste,
             restore_paste_manual,
-            clear_memory,
         ):
             secondary_row.addWidget(button)
         layout.addLayout(secondary_row)
+
+        manage_row = QHBoxLayout()
+        manage_row.setSpacing(8)
+        for button in (
+            open_rules,
+            open_history,
+            clear_memory,
+        ):
+            manage_row.addWidget(button)
+        layout.addLayout(manage_row)
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
@@ -337,6 +356,18 @@ class MainWindow(QMainWindow):
             self.set_status(f"已加入一定脱敏: {value}。以后再次出现会自动替换。")
         else:
             self.set_status(f"已加入一定不脱敏: {value}。以后再次出现会尽量保留。")
+
+    def open_rules_report(self) -> None:
+        path = self.workspace.mappings / "本地规则中心.txt"
+        path.write_text(render_memory_rules_report(self.workspace.mappings), encoding="utf-8")
+        os.startfile(str(path))
+        self.set_status("已打开本地规则中心。")
+
+    def open_history_report(self) -> None:
+        path = self.workspace.mappings / "历史项目.txt"
+        path.write_text(render_history_report(self.workspace.mappings), encoding="utf-8")
+        os.startfile(str(path))
+        self.set_status("已打开历史项目。")
 
     def _finish_restore(self, result) -> None:
         if result.review_required:

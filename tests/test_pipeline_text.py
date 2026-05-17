@@ -1,5 +1,6 @@
 from legal_anonymizer.document_io import read_text_document, write_text_document
 from legal_anonymizer.engines.presidio_light import PresidioLightEngine
+from legal_anonymizer.history import history_entries
 from legal_anonymizer.learning import add_memory_entry
 from legal_anonymizer.mapping_store import build_mapping_table
 from legal_anonymizer.models import Entity
@@ -57,6 +58,7 @@ def test_pipeline_anonymizes_and_restores_pasted_text(tmp_path):
     assert "AI" in anonymized.task_summary_path.read_text(encoding="utf-8")
     assert restored.output_path.exists()
     assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
+    assert [entry["action"] for entry in history_entries(workspace.mappings)] == ["还原", "匿名化"]
 
 
 def test_pipeline_auto_restores_downloaded_ai_file_when_single_mapping_exists(tmp_path):

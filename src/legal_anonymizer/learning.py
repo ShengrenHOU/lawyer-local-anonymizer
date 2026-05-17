@@ -97,6 +97,65 @@ def memory_entries(mapping_dir: Path) -> list[dict[str, object]]:
     return _load_memory(mapping_dir)
 
 
+def set_memory_entry_enabled(mapping_dir: Path, mode: str, category: str, value: str, enabled: bool) -> bool:
+    items = _load_memory(mapping_dir)
+    changed = False
+    target = _memory_key(mode, category, value)
+    for item in items:
+        if _memory_key(str(item.get("mode", "learned")), str(item["category"]), str(item["value"])) == target:
+            item["enabled"] = enabled
+            item["last_seen"] = utc_timestamp()
+            changed = True
+    if changed:
+        _write_memory(mapping_dir, items)
+    return changed
+
+
+def delete_memory_entry(mapping_dir: Path, mode: str, category: str, value: str) -> bool:
+    items = _load_memory(mapping_dir)
+    target = _memory_key(mode, category, value)
+    kept = [
+        item
+        for item in items
+        if _memory_key(str(item.get("mode", "learned")), str(item["category"]), str(item["value"])) != target
+    ]
+    if len(kept) == len(items):
+        return False
+    _write_memory(mapping_dir, kept)
+    return True
+
+
+def render_memory_rules_report(mapping_dir: Path) -> str:
+    items = _load_memory(mapping_dir)
+    if not items:
+        return "本地规则中心\n\n当前没有本地规则。\n"
+
+    groups = {
+        "blacklist": "一定脱敏",
+        "whitelist": "一定不脱敏",
+        "learned": "自动学习",
+    }
+    lines = [
+        "本地规则中心",
+        "",
+        "说明: 本文件只用于本地查看，不要上传给 AI。",
+        "",
+    ]
+    for mode, title in groups.items():
+        group_items = [item for item in items if item.get("mode") == mode]
+        lines.append(f"## {title}")
+        if not group_items:
+            lines.append("- 暂无")
+        for index, item in enumerate(group_items, start=1):
+            enabled = "启用" if item.get("enabled", True) else "停用"
+            category = item["category"]
+            value = item["value"]
+            occurrences = item.get("occurrences", 0)
+            lines.append(f"- {index}. [{enabled}] {category}: {value}（出现 {occurrences} 次）")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def learn_from_table(table: MappingTable, mapping_dir: Path) -> Path:
     by_key = {
         (str(item.get("mode", "learned")), item["category"], item["value"]): item
@@ -222,3 +281,10 @@ def _write_memory(mapping_dir: Path, items: object) -> Path:
     )
     path.write_text(json.dumps(sorted_items, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
+
+
+def _memory_key(mode: str, category: str, value: str) -> tuple[str, str, str]:
+    normalized_mode = mode.strip().lower()
+    if normalized_mode not in MEMORY_MODES:
+        normalized_mode = "learned"
+    return normalized_mode, category.strip().upper(), value.strip()
