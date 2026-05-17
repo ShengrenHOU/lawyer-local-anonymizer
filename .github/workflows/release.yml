@@ -29,15 +29,24 @@ jobs:
         with:
           name: 律师本地匿名化助手 ${{ github.ref_name }}
           files: dist/LegalAnonymizer.zip
-          generate_release_notes: true
+          generate_release_notes: false
           body: |
-            ## 律师用户下载
+            ## 下载方式
 
-            下载 `LegalAnonymizer.zip`，解压后双击 `LegalAnonymizer.exe`。
+            请下载本页面附件里的 `LegalAnonymizer.zip`，解压后双击 `LegalAnonymizer.exe`。
 
             直接下载：
             https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest/download/LegalAnonymizer.zip
 
-            只上传 `02-已匿名化-可上传AI` 里的文件给 AI。
+            不要下载 GitHub 自动生成的 `Source code`，也不要点绿色 `Code` 按钮。
 
-            不要上传 `99-本地映射表-不要上传` 里的任何文件。
+            ## 使用规则
+
+            1. 把客户 Word 文件放入 `01-待匿名化`。
+            2. 只上传 `02-已匿名化-可上传AI` 里的文件给 AI。
+            3. 不要上传 `02-需要复核-暂勿上传` 里的文件。
+            4. 不要上传 `99-本地映射表-不要上传` 里的任何文件。
+
+            ## 最新说明
+
+            详细教程见仓库里的 `LAWYER_USAGE.md` 和 `docs/LAWYER_RELEASE_HANDOFF.md`。

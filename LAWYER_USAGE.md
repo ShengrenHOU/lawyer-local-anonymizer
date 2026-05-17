@@ -23,6 +23,16 @@ LegalAnonymizer.exe
 
 不需要配置账号，不需要联网，不需要写代码。
 
+如果需要重新下载最新版，请打开：
+
+```text
+https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest
+```
+
+只下载 `LegalAnonymizer.zip`。不要下载 `Source code`，也不要点绿色 `Code` 按钮。
+
+如果已经装过旧版本，下载新版 zip 后解压到新文件夹，再双击新的 `LegalAnonymizer.exe` 即可。原来的工作文件夹可以继续保留，不要删除 `99-本地映射表-不要上传`。
+
 ## 3. 只需要记住 3 步
 
 ### 第一步：放原文件

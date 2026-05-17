@@ -25,6 +25,10 @@
 
 请不要点 GitHub 页面上的绿色 `Code` 按钮，也不要下载 `Source code`。律师用户只需要下载 `LegalAnonymizer.zip`。
 
+给律师朋友转发时，可以直接发这一页：
+
+[docs/LAWYER_RELEASE_HANDOFF.md](docs/LAWYER_RELEASE_HANDOFF.md)
+
 ## 它解决什么问题
 
 律师使用 AI 处理客户文件时，直接上传原始合同、memo、协议、尽调材料会有数据安全风险。本工具提供一个本地处理流程：
@@ -172,10 +176,10 @@ dist\LegalAnonymizer.zip
 
 ## 当前验证
 
-- `pytest`: 43 个测试通过
+- `pytest`: 55 个测试通过
 - `ruff`: 通过
 - 已用打包后的 `LegalAnonymizer.exe` 跑过真实 Word 合同烟测
-- 覆盖英文法律页眉、英文地址、中文公司/机构名、中文地址、甲乙方姓名上下文、英文简称、Word 不支持结构、定义词别名等测试
+- 覆盖英文法律页眉、英文地址、中文公司/机构名、中文地址、甲乙方姓名上下文、英文简称、Word 不支持结构、定义词别名、本地一定脱敏/一定不脱敏、历史项目记录等测试
 
 ## 许可证
 

@@ -20,6 +20,17 @@ LegalAnonymizer.zip
 
 不要下载 GitHub 自动生成的 `Source code`，也不要点绿色 `Code` 按钮。
 
+## 更新旧版本
+
+如果电脑上已经有旧版本：
+
+1. 下载新的 `LegalAnonymizer.zip`
+2. 解压到一个新文件夹
+3. 双击新的 `LegalAnonymizer.exe`
+4. 原来的工作文件夹可以继续保留
+
+不要删除 `99-本地映射表-不要上传`。这里保存真实信息和代号的对应表，是还原所必需的本地资料。
+
 ## 第一次使用
 
 1. 解压 `LegalAnonymizer.zip`
