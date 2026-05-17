@@ -13,7 +13,8 @@ from legal_anonymizer.document_io import (
     write_text_document,
 )
 from legal_anonymizer.engines.pipeline import DetectionEngineError, detect_entities_multi_engine
-from legal_anonymizer.learning import detect_learned_entities, learn_from_table
+from legal_anonymizer.history import record_history
+from legal_anonymizer.learning import detect_learned_entities, filter_whitelisted_entities, learn_from_table
 from legal_anonymizer.mapping_store import (
     build_mapping_table,
     export_mapping_xlsx,
@@ -58,6 +59,7 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     except DetectionEngineError as exc:
         return _write_detection_failure_result(source_path, workspace, text, str(exc))
     entities.extend(detect_learned_entities(text, workspace.mappings))
+    entities = filter_whitelisted_entities(entities, workspace.mappings)
     table = build_mapping_table(source_path.name, entities)
     table.source_sha256 = file_sha256(source_path)
     table.source_size = source_path.stat().st_size
@@ -106,6 +108,15 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
         ),
         encoding="utf-8",
     )
+    record_history(
+        workspace.mappings,
+        action="匿名化",
+        source_name=source_path.name,
+        output_path=output_path,
+        status="可以上传 AI" if upload_allowed else "需要复核",
+        item_count=len(table.mappings),
+        risk_count=len(risk_findings),
+    )
 
     return AnonymizedFileResult(
         output_path=output_path,
@@ -141,6 +152,15 @@ def restore_pasted_text(text: str, mapping_path: Path, workspace: WorkspacePaths
     output_dir = workspace.review_required if review_required else workspace.restored
     output_path = output_dir / f"{Path(table.source_name).stem}.restored.txt"
     write_text_document(output_path, restored.restored_text)
+    record_history(
+        workspace.mappings,
+        action="还原",
+        source_name=Path(table.source_name).name,
+        output_path=output_path,
+        status="需要复核" if review_required else "已还原",
+        item_count=0,
+        risk_count=len(restored.unknown_placeholders) + len(restored.missing_placeholders),
+    )
     return RestoredFileResult(
         output_path=output_path,
         unknown_placeholders=restored.unknown_placeholders,
@@ -215,6 +235,15 @@ def restore_file(source_path: Path, mapping_path: Path, workspace: WorkspacePath
         restore_docx_document(source_path, output_path, table)
     else:
         write_text_document(output_path, restored.restored_text)
+    record_history(
+        workspace.mappings,
+        action="还原",
+        source_name=source_path.name,
+        output_path=output_path,
+        status="需要复核" if review_required else "已还原",
+        item_count=0,
+        risk_count=len(restored.unknown_placeholders) + len(restored.missing_placeholders),
+    )
     return RestoredFileResult(
         output_path=output_path,
         unknown_placeholders=restored.unknown_placeholders,
@@ -278,6 +307,15 @@ def _write_detection_failure_result(
             risk_findings=risk_findings,
         ),
         encoding="utf-8",
+    )
+    record_history(
+        workspace.mappings,
+        action="匿名化",
+        source_name=source_path.name,
+        output_path=output_path,
+        status="需要复核",
+        item_count=0,
+        risk_count=len(risk_findings),
     )
     return AnonymizedFileResult(
         output_path=output_path,

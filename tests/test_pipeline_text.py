@@ -1,5 +1,7 @@
 from legal_anonymizer.document_io import read_text_document, write_text_document
 from legal_anonymizer.engines.presidio_light import PresidioLightEngine
+from legal_anonymizer.history import history_entries
+from legal_anonymizer.learning import add_memory_entry
 from legal_anonymizer.mapping_store import build_mapping_table
 from legal_anonymizer.models import Entity
 from legal_anonymizer.pipeline import (
@@ -56,6 +58,7 @@ def test_pipeline_anonymizes_and_restores_pasted_text(tmp_path):
     assert "AI" in anonymized.task_summary_path.read_text(encoding="utf-8")
     assert restored.output_path.exists()
     assert restored.output_path.read_text(encoding="utf-8") == "乙方：张三，手机号：13800000000。"
+    assert [entry["action"] for entry in history_entries(workspace.mappings)] == ["还原", "匿名化"]
 
 
 def test_pipeline_auto_restores_downloaded_ai_file_when_single_mapping_exists(tmp_path):
@@ -113,6 +116,46 @@ def test_pipeline_quarantines_when_second_pass_finds_residual_risk(tmp_path):
     assert "暂勿上传" in anonymized.risk_report_path.read_text(encoding="utf-8")
 
 
+def test_pipeline_anonymizes_local_blacklist_phrase(tmp_path):
+    workspace = create_workspace(tmp_path)
+    add_memory_entry(workspace.mappings, "PROJECT", "Project Falcon", "blacklist")
+    source = workspace.pending / "memo.txt"
+    source.write_text("Please review Project Falcon before signing.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert "Project Falcon" not in anonymized.anonymized_text
+    assert "[[PROJECT_001]]" in anonymized.anonymized_text
+    assert "local_blacklist" in anonymized.report_path.read_text(encoding="utf-8")
+
+
+def test_pipeline_blacklist_wins_when_same_phrase_is_also_whitelisted(tmp_path):
+    workspace = create_workspace(tmp_path)
+    add_memory_entry(workspace.mappings, "PROJECT", "Project Falcon", "blacklist")
+    add_memory_entry(workspace.mappings, "PROJECT", "Project Falcon", "whitelist")
+    source = workspace.pending / "memo.txt"
+    source.write_text("Please review Project Falcon before signing.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert "Project Falcon" not in anonymized.anonymized_text
+    assert "[[PROJECT_001]]" in anonymized.anonymized_text
+
+
+def test_pipeline_whitelist_keeps_matching_detected_phrase_out_of_mapping(tmp_path):
+    workspace = create_workspace(tmp_path)
+    add_memory_entry(workspace.mappings, "PHONE", "13800000000", "whitelist")
+    source = workspace.pending / "memo.txt"
+    source.write_text("Contact phone: 13800000000.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert "13800000000" in anonymized.anonymized_text
+    assert "[[PHONE_001]]" not in anonymized.anonymized_text
+    assert "13800000000" not in anonymized.mapping_path.read_text(encoding="utf-8")
+    assert not anonymized.upload_allowed
+
+
 def test_pipeline_quarantines_when_core_detection_engine_fails(tmp_path, monkeypatch):
     def fail_detect(self, text):
         raise RuntimeError("broken")
@@ -127,6 +170,7 @@ def test_pipeline_quarantines_when_core_detection_engine_fails(tmp_path, monkeyp
     assert not anonymized.upload_allowed
     assert anonymized.output_path.parent == workspace.review_required
     assert "detection_engine_failed" in anonymized.risk_report_path.read_text(encoding="utf-8")
+    assert history_entries(workspace.mappings)[0]["status"] == "需要复核"
 
 
 def test_restore_with_missing_placeholder_goes_to_review_required(tmp_path):

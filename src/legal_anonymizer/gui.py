@@ -10,8 +10,10 @@ from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
     QFrame,
+    QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -21,7 +23,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from legal_anonymizer.learning import clear_learning_memory, learning_entry_count
+from legal_anonymizer.history import render_history_report
+from legal_anonymizer.learning import (
+    add_memory_entry,
+    clear_learning_memory,
+    learned_entry_count,
+    render_memory_rules_report,
+)
 from legal_anonymizer.mapping_store import load_mapping_table
 from legal_anonymizer.pipeline import (
     latest_prompt_path,
@@ -98,6 +106,13 @@ QTextEdit {
     background: #ffffff;
     padding: 8px;
 }
+QLineEdit, QComboBox {
+    min-height: 32px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #ffffff;
+    padding: 4px 8px;
+}
 QFrame#divider {
     color: #e5e7eb;
 }
@@ -132,6 +147,10 @@ class MainWindow(QMainWindow):
         self.log_box.setMaximumHeight(140)
         self.log_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.log_box.setPlaceholderText("处理记录会显示在这里。")
+        self.memory_value = QLineEdit()
+        self.memory_value.setPlaceholderText("发现漏掉的姓名、公司、项目名，或不想脱敏的普通词，填在这里")
+        self.memory_category = QComboBox()
+        self.memory_category.addItems(["PERSON", "COMPANY", "ADDRESS", "PROJECT", "PHONE", "EMAIL", "ID", "CUSTOM"])
 
         open_pending = QPushButton("放原文件")
         open_pending.setObjectName("primaryButton")
@@ -159,6 +178,15 @@ class MainWindow(QMainWindow):
         restore_paste_manual.clicked.connect(self.restore_pasted_manual)
         clear_memory = QPushButton("清空本地学习记忆")
         clear_memory.clicked.connect(self.clear_memory)
+        open_rules = QPushButton("本地规则")
+        open_rules.clicked.connect(self.open_rules_report)
+        open_history = QPushButton("历史项目")
+        open_history.clicked.connect(self.open_history_report)
+        add_blacklist = QPushButton("加入一定脱敏")
+        add_blacklist.setObjectName("primaryButton")
+        add_blacklist.clicked.connect(lambda: self.add_memory_rule("blacklist"))
+        add_whitelist = QPushButton("加入一定不脱敏")
+        add_whitelist.clicked.connect(lambda: self.add_memory_rule("whitelist"))
 
         layout = QVBoxLayout()
         layout.setContentsMargins(18, 16, 18, 16)
@@ -176,6 +204,19 @@ class MainWindow(QMainWindow):
         warning.setWordWrap(True)
         layout.addWidget(warning)
 
+        review_hint = QLabel("复核补充：如果发现漏脱敏，把原词填入并点“一定脱敏”；如果普通法律词被误脱敏，点“一定不脱敏”。")
+        review_hint.setObjectName("instruction")
+        review_hint.setWordWrap(True)
+        layout.addWidget(review_hint)
+
+        memory_row = QHBoxLayout()
+        memory_row.setSpacing(8)
+        memory_row.addWidget(self.memory_category)
+        memory_row.addWidget(self.memory_value, stretch=1)
+        memory_row.addWidget(add_blacklist)
+        memory_row.addWidget(add_whitelist)
+        layout.addLayout(memory_row)
+
         main_row = QHBoxLayout()
         main_row.setSpacing(8)
         for button in (open_pending, open_anonymized, open_restore, open_output):
@@ -190,10 +231,19 @@ class MainWindow(QMainWindow):
             copy_prompt,
             restore_paste,
             restore_paste_manual,
-            clear_memory,
         ):
             secondary_row.addWidget(button)
         layout.addLayout(secondary_row)
+
+        manage_row = QHBoxLayout()
+        manage_row.setSpacing(8)
+        for button in (
+            open_rules,
+            open_history,
+            clear_memory,
+        ):
+            manage_row.addWidget(button)
+        layout.addLayout(manage_row)
 
         divider = QFrame()
         divider.setFrameShape(QFrame.Shape.HLine)
@@ -276,7 +326,7 @@ class MainWindow(QMainWindow):
         self._finish_restore(result)
 
     def clear_memory(self) -> None:
-        count = learning_entry_count(self.workspace.mappings)
+        count = learned_entry_count(self.workspace.mappings)
         if count == 0:
             QMessageBox.information(self, "本地学习记忆", "当前没有可清空的本地学习记忆。")
             return
@@ -290,6 +340,34 @@ class MainWindow(QMainWindow):
             return
         removed = clear_learning_memory(self.workspace.mappings)
         self.set_status(f"已清空 {removed} 条本地学习记忆。")
+
+    def add_memory_rule(self, mode: str) -> None:
+        value = self.memory_value.text().strip()
+        if not value:
+            QMessageBox.warning(self, "无法添加", "请先填写要记住的词。")
+            return
+        try:
+            add_memory_entry(self.workspace.mappings, self.memory_category.currentText(), value, mode)
+        except ValueError as exc:
+            QMessageBox.warning(self, "无法添加", str(exc))
+            return
+        self.memory_value.clear()
+        if mode == "blacklist":
+            self.set_status(f"已加入一定脱敏: {value}。以后再次出现会自动替换。")
+        else:
+            self.set_status(f"已加入一定不脱敏: {value}。以后再次出现会尽量保留。")
+
+    def open_rules_report(self) -> None:
+        path = self.workspace.mappings / "本地规则中心.txt"
+        path.write_text(render_memory_rules_report(self.workspace.mappings), encoding="utf-8")
+        os.startfile(str(path))
+        self.set_status("已打开本地规则中心。")
+
+    def open_history_report(self) -> None:
+        path = self.workspace.mappings / "历史项目.txt"
+        path.write_text(render_history_report(self.workspace.mappings), encoding="utf-8")
+        os.startfile(str(path))
+        self.set_status("已打开历史项目。")
 
     def _finish_restore(self, result) -> None:
         if result.review_required:
