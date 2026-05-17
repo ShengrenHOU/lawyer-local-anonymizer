@@ -29,6 +29,28 @@
 
 [docs/LAWYER_RELEASE_HANDOFF.md](docs/LAWYER_RELEASE_HANDOFF.md)
 
+## 看图使用
+
+打开后看到这个窗口，就说明程序已经在本地运行。
+
+![主界面](docs/assets/screenshots/01-main-window.png)
+
+实际使用只需要按界面上的 4 个大按钮走：
+
+1. 点 `放原文件`，把客户 Word 文件放进去。
+2. 等状态栏显示“可上传 AI”。
+3. 点 `拿去上传AI`，只上传这个文件夹里的匿名化 Word。
+4. AI 处理完后，点 `放AI结果` 把 AI 下载文件放回，或者把 AI 回复粘贴到大文本框。
+5. 点 `看还原结果`，查看已经恢复真实姓名、公司、地址的文件。
+
+处理成功后，状态栏会明确告诉你“可上传 AI”。
+
+![处理完成](docs/assets/screenshots/02-after-anonymized.png)
+
+程序会创建这些工作文件夹。律师只需要记住：只上传 `02-已匿名化-可上传AI`，不要上传其它文件夹。
+
+![工作文件夹](docs/assets/screenshots/03-workspace-folders.png)
+
 ## 它解决什么问题
 
 律师使用 AI 处理客户文件时，直接上传原始合同、memo、协议、尽调材料会有数据安全风险。本工具提供一个本地处理流程：

@@ -29,6 +29,18 @@ LegalAnonymizer.zip
 5. 点击 `拿去上传AI`
 6. 只上传 `02-已匿名化-可上传AI` 里的文件
 
+打开后应当看到这个界面：
+
+![主界面](assets/screenshots/01-main-window.png)
+
+处理成功后，底部状态会显示“可上传 AI”：
+
+![处理完成](assets/screenshots/02-after-anonymized.png)
+
+程序会自动创建这些文件夹。只上传绿色说明的 `02-已匿名化-可上传AI`，不要上传标红的本地映射表文件夹：
+
+![工作文件夹](assets/screenshots/03-workspace-folders.png)
+
 ## 更新旧版本
 
 如果以前已经用过旧版本：

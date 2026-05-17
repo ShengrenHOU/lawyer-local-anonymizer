@@ -38,6 +38,10 @@ LegalAnonymizer.zip
 3. 程序会自动创建工作文件夹
 4. 后续只需要通过程序按钮打开对应文件夹
 
+打开程序后，主界面如下：
+
+![主界面](assets/screenshots/01-main-window.png)
+
 程序默认工作区：
 
 ```text
@@ -60,6 +64,10 @@ LegalAnonymizer.zip
 
 如果文件没有马上处理，可以点击 `重新扫描`。
 
+处理成功后，状态栏会显示“可上传 AI”：
+
+![处理完成](assets/screenshots/02-after-anonymized.png)
+
 ## 哪些文件能上传
 
 可以上传：
@@ -79,6 +87,10 @@ LegalAnonymizer.zip
 `02-需要复核-暂勿上传` 表示程序发现风险或无法确认安全。请先人工检查，不要直接上传给 AI。
 
 `99-本地映射表-不要上传` 里保存真实信息和代号的对应关系，是本地还原用的敏感资料。
+
+可以按下面这张图理解每个文件夹的用途：
+
+![工作文件夹](assets/screenshots/03-workspace-folders.png)
 
 ## 给 AI 的提示词
 
