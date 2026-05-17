@@ -56,7 +56,11 @@ def filter_whitelisted_entities(entities: list[Entity], mapping_dir: Path) -> li
     }
     if not whitelist_values:
         return entities
-    return [entity for entity in entities if entity.value.strip() not in whitelist_values]
+    return [
+        entity
+        for entity in entities
+        if entity.source == "local_blacklist" or entity.value.strip() not in whitelist_values
+    ]
 
 
 def add_memory_entry(mapping_dir: Path, category: str, value: str, mode: str) -> Path:
@@ -191,15 +195,19 @@ def learn_from_table(table: MappingTable, mapping_dir: Path) -> Path:
 
 
 def clear_learning_memory(mapping_dir: Path) -> int:
-    count = learning_entry_count(mapping_dir)
-    path = _memory_path(mapping_dir)
-    if path.exists():
-        path.unlink()
-    return count
+    items = _load_memory(mapping_dir)
+    kept = [item for item in items if item.get("mode") != "learned"]
+    removed_count = len(items) - len(kept)
+    _write_memory(mapping_dir, kept)
+    return removed_count
 
 
 def learning_entry_count(mapping_dir: Path) -> int:
     return len(_load_memory(mapping_dir))
+
+
+def learned_entry_count(mapping_dir: Path) -> int:
+    return sum(1 for item in _load_memory(mapping_dir) if item.get("mode") == "learned")
 
 
 def was_processed(path: Path, state_dir: Path) -> bool:

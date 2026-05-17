@@ -308,6 +308,15 @@ def _write_detection_failure_result(
         ),
         encoding="utf-8",
     )
+    record_history(
+        workspace.mappings,
+        action="匿名化",
+        source_name=source_path.name,
+        output_path=output_path,
+        status="需要复核",
+        item_count=0,
+        risk_count=len(risk_findings),
+    )
     return AnonymizedFileResult(
         output_path=output_path,
         mapping_path=mapping_path,

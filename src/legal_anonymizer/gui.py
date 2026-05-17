@@ -27,7 +27,7 @@ from legal_anonymizer.history import render_history_report
 from legal_anonymizer.learning import (
     add_memory_entry,
     clear_learning_memory,
-    learning_entry_count,
+    learned_entry_count,
     render_memory_rules_report,
 )
 from legal_anonymizer.mapping_store import load_mapping_table
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
         self._finish_restore(result)
 
     def clear_memory(self) -> None:
-        count = learning_entry_count(self.workspace.mappings)
+        count = learned_entry_count(self.workspace.mappings)
         if count == 0:
             QMessageBox.information(self, "本地学习记忆", "当前没有可清空的本地学习记忆。")
             return

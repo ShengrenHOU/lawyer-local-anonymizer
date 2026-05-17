@@ -129,6 +129,19 @@ def test_pipeline_anonymizes_local_blacklist_phrase(tmp_path):
     assert "local_blacklist" in anonymized.report_path.read_text(encoding="utf-8")
 
 
+def test_pipeline_blacklist_wins_when_same_phrase_is_also_whitelisted(tmp_path):
+    workspace = create_workspace(tmp_path)
+    add_memory_entry(workspace.mappings, "PROJECT", "Project Falcon", "blacklist")
+    add_memory_entry(workspace.mappings, "PROJECT", "Project Falcon", "whitelist")
+    source = workspace.pending / "memo.txt"
+    source.write_text("Please review Project Falcon before signing.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert "Project Falcon" not in anonymized.anonymized_text
+    assert "[[PROJECT_001]]" in anonymized.anonymized_text
+
+
 def test_pipeline_whitelist_keeps_matching_detected_phrase_out_of_mapping(tmp_path):
     workspace = create_workspace(tmp_path)
     add_memory_entry(workspace.mappings, "PHONE", "13800000000", "whitelist")
@@ -157,6 +170,7 @@ def test_pipeline_quarantines_when_core_detection_engine_fails(tmp_path, monkeyp
     assert not anonymized.upload_allowed
     assert anonymized.output_path.parent == workspace.review_required
     assert "detection_engine_failed" in anonymized.risk_report_path.read_text(encoding="utf-8")
+    assert history_entries(workspace.mappings)[0]["status"] == "需要复核"
 
 
 def test_restore_with_missing_placeholder_goes_to_review_required(tmp_path):

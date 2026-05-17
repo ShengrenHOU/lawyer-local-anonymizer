@@ -7,6 +7,7 @@ from legal_anonymizer.learning import (
     detect_learned_entities,
     filter_whitelisted_entities,
     learn_from_table,
+    learned_entry_count,
     learning_entry_count,
     memory_entries,
     mark_processed,
@@ -78,6 +79,18 @@ def test_whitelist_memory_entry_removes_matching_entities(tmp_path):
     assert [(item.category, item.value) for item in filtered] == [("PERSON", "Alice Chen")]
 
 
+def test_blacklist_takes_priority_over_whitelist_for_same_value(tmp_path):
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "whitelist")
+    entities = detect_learned_entities("Please review Project Falcon.", tmp_path)
+
+    filtered = filter_whitelisted_entities(entities, tmp_path)
+
+    assert [(item.category, item.value, item.source) for item in filtered] == [
+        ("PROJECT", "Project Falcon", "local_blacklist")
+    ]
+
+
 def test_memory_entry_can_be_disabled_and_enabled(tmp_path):
     add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
 
@@ -137,10 +150,15 @@ def test_learning_memory_can_be_cleared_without_deleting_mapping(tmp_path):
     table = build_mapping_table("old.txt", [Entity("COMPANY", "Acme Holdings", 0, 13)])
     mapping_path = save_mapping_table(tmp_path, table)
     learn_from_table(table, tmp_path)
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
+    add_memory_entry(tmp_path, "CUSTOM", "Ordinary Course", "whitelist")
 
-    assert learning_entry_count(tmp_path) == 1
+    assert learning_entry_count(tmp_path) == 3
+    assert learned_entry_count(tmp_path) == 1
     assert clear_learning_memory(tmp_path) == 1
-    assert learning_entry_count(tmp_path) == 0
+    assert learning_entry_count(tmp_path) == 2
+    assert learned_entry_count(tmp_path) == 0
+    assert {item["mode"] for item in memory_entries(tmp_path)} == {"blacklist", "whitelist"}
     assert mapping_path.exists()
 
 
