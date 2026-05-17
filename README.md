@@ -2,24 +2,40 @@
 
 Legal Anonymizer is a local-first reversible anonymization tool for lawyers who want to use AI chat tools without uploading raw client information.
 
-It replaces sensitive information in Word, copyable PDF, and text files with stable placeholders such as `[[PERSON_001]]` and `[[COMPANY_001]]`. For `.docx` files, it writes an anonymized `.docx` and restores back to `.docx` while preserving most Word layout, tables, headers, footers, and run formatting. After the AI response comes back, the app restores placeholders locally using a private mapping file that never needs to be uploaded.
+## Download for Lawyers
+
+Download the latest Windows package here:
+
+[Latest release](https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest)
+
+Direct download:
+
+[LegalAnonymizer.zip](https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest/download/LegalAnonymizer.zip)
+
+Use it like this:
+
+1. Download `LegalAnonymizer.zip`.
+2. Extract the zip file.
+3. Double-click `LegalAnonymizer.exe`.
+4. Put client `.docx` files into `01-待匿名化`.
+5. Upload only files from `02-已匿名化-可上传AI`.
+6. Do not upload anything from `99-本地映射表-不要上传`.
+
+Do not download the source code zip from GitHub. Lawyer users should download only `LegalAnonymizer.zip` from Releases.
 
 ## What It Does
 
 - Runs locally on Windows.
-- Creates a simple six-folder workflow.
+- Creates a simple folder workflow.
 - Watches an input folder and anonymizes new files automatically.
-- Runs a second-pass leakage scan before allowing upload.
-- Blocks residual Chinese company/institution names, Chinese party-name contexts, Chinese addresses, English legal entities, and acronym aliases during the second-pass scan.
-- Uses a multi-engine detection pipeline: lightweight Presidio recognizers, optional spaCy NER, and legal-document rules.
-- Generates AI-safe files for Kimi, ChatGPT, or similar tools.
 - Keeps `.docx` anonymization and restoration in Word format where possible.
-- Generates a local JSON mapping file for restoration.
-- Generates a lawyer-readable Excel comparison table.
+- Preserves most Word layout, tables, headers, footers, and run formatting.
+- Uses placeholders such as `[[PERSON_001]]` and `[[COMPANY_001]]`.
+- Runs a second-pass leakage scan before allowing upload.
+- Routes risky files to a review folder instead of the uploadable folder.
+- Generates a local JSON mapping file and lawyer-readable Excel comparison table.
 - Keeps a local learning memory so repeated names, companies, and addresses are recognized more easily over time.
-- Stores local learning memory with enable flags, source names, and occurrence counts so bad learned entries can be governed instead of becoming permanent hidden rules.
-- Writes one per-file result summary explaining whether the output is uploadable and which mapping table belongs to it.
-- Restores AI output from downloaded files or pasted text, and routes damaged AI results to the review folder if placeholders are missing or unknown.
+- Restores downloaded AI output files or pasted AI text.
 - Keeps original files unchanged.
 
 ## Folder Workflow
@@ -40,17 +56,7 @@ Only files in `02-已匿名化-可上传AI/` should be uploaded to AI tools.
 
 Never upload `99-本地映射表-不要上传/`; it contains the local mapping needed to restore real names and other sensitive values.
 
-If a file lands in `02-需要复核-暂勿上传/`, the automatic leakage scan found high-risk residual content, a core local detector failed, or an AI result damaged required placeholders. Do not upload that file to AI.
-
-## Quick Start for End Users
-
-Receive the packaged Windows app folder from the project maintainer, then double-click:
-
-```text
-LegalAnonymizer.exe
-```
-
-Full user guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+If a file lands in `02-需要复核-暂勿上传/`, do not upload that file to AI. The local scan found high-risk residual content, an unsupported Word structure, a detector failure, or damaged placeholders in an AI result.
 
 ## Supported Files
 
@@ -77,6 +83,12 @@ Not supported in the current version:
 - text inside stamps or screenshots
 - encrypted PDF
 
+## User Guide
+
+Full user guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+
+Security and privacy notes: [docs/PRIVACY.md](docs/PRIVACY.md)
+
 ## Developer Setup
 
 Requirements:
@@ -96,10 +108,10 @@ Run tests:
 
 ```powershell
 .\.venv\Scripts\python -m pytest -q
-.\.venv\Scripts\python -m ruff check src tests
+.\.venv\Scripts\python -m ruff check src tests tools
 ```
 
-## Build Windows App
+Build Windows app:
 
 ```powershell
 .\scripts\build_windows.ps1
@@ -111,8 +123,6 @@ Build outputs:
 dist\LegalAnonymizer\LegalAnonymizer.exe
 dist\LegalAnonymizer.zip
 ```
-
-Give the whole `dist\LegalAnonymizer/` folder to the lawyer. The app window itself uses Chinese text.
 
 ## Security Model
 
@@ -135,6 +145,7 @@ text extraction
   -> lightweight Presidio-style recognizers
   -> optional spaCy NER, if a local model is installed
   -> legal-document rules
+  -> candidate entity scoring and alias resolution
   -> merged case entity table
   -> placeholder replacement
   -> second-pass leakage scan
@@ -146,12 +157,12 @@ The app intentionally avoids slow default Presidio NLP startup in the click-to-u
 
 ## Current Validation
 
-Current local validation:
+Current validation:
 
-- `pytest`: 33 tests passing
-- Leakage gate tests cover English legal headers, English addresses, Chinese company/institution names, Chinese addresses, Chinese party-name contexts, and acronym residuals
+- `pytest`: 43 tests passing
 - `ruff`: all checks passing
-- packaged smoke: built `LegalAnonymizer.exe` creates the six working folders under an isolated test user profile
+- Packaged smoke: built `LegalAnonymizer.exe` processed a real Word contract under an isolated test user profile
+- Leakage gate tests cover English legal headers, English addresses, Chinese company/institution names, Chinese addresses, Chinese party-name contexts, acronym residuals, unsupported Word structures, and defined-term aliases
 
 ## License
 
