@@ -1,46 +1,54 @@
-# Legal Anonymizer
+# 律师本地匿名化助手
 
-Legal Anonymizer is a local-first reversible anonymization tool for lawyers who want to use AI chat tools without uploading raw client information.
+这是一个给中国律师使用的 Windows 本地小工具。它的目标很简单：在把客户 Word 文件上传给 Kimi、ChatGPT 等 AI 工具前，先在本机把姓名、公司、地址、证件号、邮箱、电话等敏感信息替换成可还原的代号。
 
-## Download for Lawyers
+原始客户文件不需要上传到本项目，也不会由本工具自动上传到任何 AI 服务。
 
-Download the latest Windows package here:
+## 律师用户下载
 
-[Latest release](https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest)
+最新版下载页：
 
-Direct download:
+[https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest](https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest)
 
-[LegalAnonymizer.zip](https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest/download/LegalAnonymizer.zip)
+直接下载最新版安装包：
 
-Use it like this:
+[https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest/download/LegalAnonymizer.zip](https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest/download/LegalAnonymizer.zip)
 
-1. Download `LegalAnonymizer.zip`.
-2. Extract the zip file.
-3. Double-click `LegalAnonymizer.exe`.
-4. Put client `.docx` files into `01-待匿名化`.
-5. Upload only files from `02-已匿名化-可上传AI`.
-6. Do not upload anything from `99-本地映射表-不要上传`.
+使用方式：
 
-Do not download the source code zip from GitHub. Lawyer users should download only `LegalAnonymizer.zip` from Releases.
+1. 下载 `LegalAnonymizer.zip`
+2. 解压 zip
+3. 双击 `LegalAnonymizer.exe`
+4. 把客户 `.docx` 文件放入 `01-待匿名化`
+5. 只上传 `02-已匿名化-可上传AI` 里的文件给 AI
+6. 不要上传 `99-本地映射表-不要上传` 里的任何文件
 
-## What It Does
+请不要点 GitHub 页面上的绿色 `Code` 按钮，也不要下载 `Source code`。律师用户只需要下载 `LegalAnonymizer.zip`。
 
-- Runs locally on Windows.
-- Creates a simple folder workflow.
-- Watches an input folder and anonymizes new files automatically.
-- Keeps `.docx` anonymization and restoration in Word format where possible.
-- Preserves most Word layout, tables, headers, footers, and run formatting.
-- Uses placeholders such as `[[PERSON_001]]` and `[[COMPANY_001]]`.
-- Runs a second-pass leakage scan before allowing upload.
-- Routes risky files to a review folder instead of the uploadable folder.
-- Generates a local JSON mapping file and lawyer-readable Excel comparison table.
-- Keeps a local learning memory so repeated names, companies, and addresses are recognized more easily over time.
-- Restores downloaded AI output files or pasted AI text.
-- Keeps original files unchanged.
+## 它解决什么问题
 
-## Folder Workflow
+律师使用 AI 处理客户文件时，直接上传原始合同、memo、协议、尽调材料会有数据安全风险。本工具提供一个本地处理流程：
 
-On first launch, the app creates this workspace under the Windows user profile:
+```text
+客户原始 Word
+  -> 本地匿名化
+  -> 上传匿名化文件给 AI
+  -> AI 输出结果
+  -> 本地还原真实姓名、公司、地址等信息
+```
+
+示例：
+
+```text
+张三 -> [[PERSON_001]]
+上海某某科技有限公司 -> [[COMPANY_001]]
+```
+
+AI 看到的是代号，不直接看到真实客户信息。
+
+## 文件夹流程
+
+第一次打开程序后，会在电脑上创建：
 
 ```text
 律师本地匿名化助手/
@@ -52,51 +60,73 @@ On first launch, the app creates this workspace under the Windows user profile:
   99-本地映射表-不要上传/
 ```
 
-Only files in `02-已匿名化-可上传AI/` should be uploaded to AI tools.
+含义：
 
-Never upload `99-本地映射表-不要上传/`; it contains the local mapping needed to restore real names and other sensitive values.
+- `01-待匿名化`：放客户原始文件
+- `02-已匿名化-可上传AI`：只上传这里的文件给 AI
+- `02-需要复核-暂勿上传`：程序认为可能还有风险，不要上传
+- `03-AI结果文件-待还原`：把 AI 下载结果放这里
+- `04-已还原`：查看还原后的结果
+- `99-本地映射表-不要上传`：保存真实信息和代号的对应表，绝对不要上传
 
-If a file lands in `02-需要复核-暂勿上传/`, do not upload that file to AI. The local scan found high-risk residual content, an unsupported Word structure, a detector failure, or damaged placeholders in an AI result.
+## 当前支持
 
-## Supported Files
+匿名化输入：
 
-Input anonymization:
-
-- `.docx`, output as anonymized `.docx`
-- `.doc`, if Microsoft Word is installed locally for conversion; otherwise save as `.docx` first
-- copyable `.pdf`
+- `.docx`，输出仍为匿名化 `.docx`
+- `.doc`，需要本机安装 Microsoft Word 才能自动转换；失败时请先另存为 `.docx`
+- 可复制文字的 `.pdf`
 - `.txt`
 - `.md`
 
-AI result restoration:
+AI 结果还原：
 
-- `.docx`, restored as `.docx`
+- `.docx`
 - `.txt`
 - `.md`
-- pasted text
+- 直接粘贴 AI 回复文本
 
-Not supported in the current version:
+暂不支持：
 
-- scanned PDF
-- images
-- handwriting
-- text inside stamps or screenshots
-- encrypted PDF
+- 扫描 PDF
+- 图片
+- 手写内容
+- 盖章图片里的文字
+- 加密 PDF
 
-## User Guide
+## 安全提示
 
-Full user guide: [docs/USER_GUIDE.md](docs/USER_GUIDE.md)
+- 原始文件留在本机
+- 映射表留在本机
+- 本工具不会自动上传文件给 AI
+- 只能上传 `02-已匿名化-可上传AI` 里的文件
+- `02-需要复核-暂勿上传` 里的文件不要上传
+- `99-本地映射表-不要上传` 里的文件不要上传
 
-Security and privacy notes: [docs/PRIVACY.md](docs/PRIVACY.md)
+重要限制：自动匿名化不能承诺 100% 不遗漏。律师在上传前仍应快速看一眼匿名化结果。这个工具的定位是“本地自动匿名化 + 风险门禁”，不是替代律师判断。
 
-## Developer Setup
+## 检测逻辑
 
-Requirements:
+当前匿名化流程：
 
-- Windows
-- Python 3.11+
+```text
+文本抽取
+  -> Presidio 风格本地识别
+  -> 可选 spaCy NER
+  -> 法律文档规则
+  -> 候选实体评分和别名归并
+  -> 生成映射表
+  -> Word 内替换
+  -> 二次漏扫
+      -> 通过：02-已匿名化-可上传AI
+      -> 不通过：02-需要复核-暂勿上传
+```
 
-Install and run from source:
+## 给开发者
+
+本项目当前是 Python / PySide6 本地桌面程序。
+
+本地运行：
 
 ```powershell
 python -m venv .venv
@@ -104,66 +134,33 @@ python -m venv .venv
 .\.venv\Scripts\python -m legal_anonymizer
 ```
 
-Run tests:
+测试：
 
 ```powershell
 .\.venv\Scripts\python -m pytest -q
 .\.venv\Scripts\python -m ruff check src tests tools
 ```
 
-Build Windows app:
+打包：
 
 ```powershell
 .\scripts\build_windows.ps1
 ```
 
-Build outputs:
+输出：
 
 ```text
 dist\LegalAnonymizer\LegalAnonymizer.exe
 dist\LegalAnonymizer.zip
 ```
 
-## Security Model
+## 当前验证
 
-This project is designed around local processing:
+- `pytest`: 43 个测试通过
+- `ruff`: 通过
+- 已用打包后的 `LegalAnonymizer.exe` 跑过真实 Word 合同烟测
+- 覆盖英文法律页眉、英文地址、中文公司/机构名、中文地址、甲乙方姓名上下文、英文简称、Word 不支持结构、定义词别名等测试
 
-- Original documents stay on the user's computer.
-- Mapping files stay on the user's computer.
-- The app does not upload files to any AI service.
-- The user manually uploads only the anonymized output.
-- Logs and reports avoid storing full document text.
+## 许可证
 
-Important limitation: automated anonymization can miss entities. Users should quickly review anonymized output before uploading it to an AI tool.
-
-## Detection Architecture
-
-The anonymization pipeline uses multiple detection layers:
-
-```text
-text extraction
-  -> lightweight Presidio-style recognizers
-  -> optional spaCy NER, if a local model is installed
-  -> legal-document rules
-  -> candidate entity scoring and alias resolution
-  -> merged case entity table
-  -> placeholder replacement
-  -> second-pass leakage scan
-      -> pass: 02-已匿名化-可上传AI
-      -> fail: 02-需要复核-暂勿上传
-```
-
-The app intentionally avoids slow default Presidio NLP startup in the click-to-use path. Presidio-style recognizers handle structured PII locally, while spaCy NER is loaded lazily only if a local model is available.
-
-## Current Validation
-
-Current validation:
-
-- `pytest`: 43 tests passing
-- `ruff`: all checks passing
-- Packaged smoke: built `LegalAnonymizer.exe` processed a real Word contract under an isolated test user profile
-- Leakage gate tests cover English legal headers, English addresses, Chinese company/institution names, Chinese addresses, Chinese party-name contexts, acronym residuals, unsupported Word structures, and defined-term aliases
-
-## License
-
-MIT License. See [LICENSE](LICENSE).
+MIT License。详见 [LICENSE](LICENSE)。

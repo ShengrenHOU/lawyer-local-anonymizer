@@ -27,17 +27,17 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Legal Anonymizer ${{ github.ref_name }}
+          name: 律师本地匿名化助手 ${{ github.ref_name }}
           files: dist/LegalAnonymizer.zip
           generate_release_notes: true
           body: |
-            ## Lawyer download
+            ## 律师用户下载
 
-            Download `LegalAnonymizer.zip`, extract it, and double-click `LegalAnonymizer.exe`.
+            下载 `LegalAnonymizer.zip`，解压后双击 `LegalAnonymizer.exe`。
 
-            Direct download:
+            直接下载：
             https://github.com/ShengrenHOU/lawyer-local-anonymizer/releases/latest/download/LegalAnonymizer.zip
 
-            Only upload files from the uploadable AI output folder.
+            只上传 `02-已匿名化-可上传AI` 里的文件给 AI。
 
-            Do not upload anything from the local mapping folder.
+            不要上传 `99-本地映射表-不要上传` 里的任何文件。
