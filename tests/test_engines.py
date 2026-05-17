@@ -27,6 +27,16 @@ def test_multi_engine_detects_english_legal_surface():
     assert ("ADDRESS", "22 Irongate Road East, Rd 5, Hastings, 4175, New Zealand") in values
 
 
+def test_pipeline_detects_defined_term_aliases_in_english_memo():
+    text = 'TO: The Board of Directors of Rockit Trading (Shanghai) Co., Ltd. ("RTS")\nRE: Project Falcon'
+
+    entities = detect_entities_multi_engine(text)
+    values = {entity.value for entity in entities}
+
+    assert "Rockit Trading (Shanghai) Co., Ltd." in values
+    assert "RTS" in values
+
+
 def test_core_engine_failure_is_not_silent(monkeypatch):
     def fail_detect(self, text):
         raise RuntimeError("broken")
