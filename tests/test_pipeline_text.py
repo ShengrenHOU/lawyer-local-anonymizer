@@ -1,5 +1,6 @@
 from legal_anonymizer.document_io import read_text_document, write_text_document
 from legal_anonymizer.engines.presidio_light import PresidioLightEngine
+from legal_anonymizer.learning import add_memory_entry
 from legal_anonymizer.mapping_store import build_mapping_table
 from legal_anonymizer.models import Entity
 from legal_anonymizer.pipeline import (
@@ -111,6 +112,33 @@ def test_pipeline_quarantines_when_second_pass_finds_residual_risk(tmp_path):
     assert anonymized.output_path.parent == workspace.review_required
     assert anonymized.risk_findings
     assert "暂勿上传" in anonymized.risk_report_path.read_text(encoding="utf-8")
+
+
+def test_pipeline_anonymizes_local_blacklist_phrase(tmp_path):
+    workspace = create_workspace(tmp_path)
+    add_memory_entry(workspace.mappings, "PROJECT", "Project Falcon", "blacklist")
+    source = workspace.pending / "memo.txt"
+    source.write_text("Please review Project Falcon before signing.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert "Project Falcon" not in anonymized.anonymized_text
+    assert "[[PROJECT_001]]" in anonymized.anonymized_text
+    assert "local_blacklist" in anonymized.report_path.read_text(encoding="utf-8")
+
+
+def test_pipeline_whitelist_keeps_matching_detected_phrase_out_of_mapping(tmp_path):
+    workspace = create_workspace(tmp_path)
+    add_memory_entry(workspace.mappings, "PHONE", "13800000000", "whitelist")
+    source = workspace.pending / "memo.txt"
+    source.write_text("Contact phone: 13800000000.", encoding="utf-8")
+
+    anonymized = anonymize_file(source, workspace)
+
+    assert "13800000000" in anonymized.anonymized_text
+    assert "[[PHONE_001]]" not in anonymized.anonymized_text
+    assert "13800000000" not in anonymized.mapping_path.read_text(encoding="utf-8")
+    assert not anonymized.upload_allowed
 
 
 def test_pipeline_quarantines_when_core_detection_engine_fails(tmp_path, monkeypatch):

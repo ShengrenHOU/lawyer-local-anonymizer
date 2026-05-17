@@ -1,10 +1,13 @@
 import json
 
 from legal_anonymizer.learning import (
+    add_memory_entry,
     clear_learning_memory,
     detect_learned_entities,
+    filter_whitelisted_entities,
     learn_from_table,
     learning_entry_count,
+    memory_entries,
     mark_processed,
     was_processed,
 )
@@ -47,6 +50,52 @@ def test_disabled_learning_memory_is_not_reused(tmp_path):
     entities = detect_learned_entities("Acme Holdings signed again.", tmp_path)
 
     assert entities == []
+
+
+def test_blacklist_memory_entry_is_reused_as_local_blacklist(tmp_path):
+    add_memory_entry(tmp_path, "PROJECT", "Project Falcon", "blacklist")
+
+    entities = detect_learned_entities("Please review Project Falcon.", tmp_path)
+
+    assert [(item.category, item.value, item.source) for item in entities] == [
+        ("PROJECT", "Project Falcon", "local_blacklist")
+    ]
+    assert memory_entries(tmp_path)[0]["mode"] == "blacklist"
+
+
+def test_whitelist_memory_entry_removes_matching_entities(tmp_path):
+    add_memory_entry(tmp_path, "COMPANY", "Ordinary Course", "whitelist")
+    entities = [
+        Entity("COMPANY", "Ordinary Course", 0, 15, source="legal_rules"),
+        Entity("PERSON", "Alice Chen", 20, 30, source="legal_rules"),
+    ]
+
+    filtered = filter_whitelisted_entities(entities, tmp_path)
+
+    assert [(item.category, item.value) for item in filtered] == [("PERSON", "Alice Chen")]
+
+
+def test_legacy_learning_memory_without_mode_still_reuses_previous_mapping(tmp_path):
+    (tmp_path / "local-memory.json").write_text(
+        json.dumps(
+            [
+                {
+                    "category": "COMPANY",
+                    "value": "Legacy Holdings",
+                    "enabled": True,
+                    "occurrences": 2,
+                    "source_names": ["old.txt"],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    entities = detect_learned_entities("Legacy Holdings signed again.", tmp_path)
+
+    assert [(item.category, item.value, item.source) for item in entities] == [
+        ("COMPANY", "Legacy Holdings", "local_memory")
+    ]
 
 
 def test_learning_memory_can_be_cleared_without_deleting_mapping(tmp_path):

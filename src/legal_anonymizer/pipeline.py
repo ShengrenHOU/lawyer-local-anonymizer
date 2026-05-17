@@ -13,7 +13,7 @@ from legal_anonymizer.document_io import (
     write_text_document,
 )
 from legal_anonymizer.engines.pipeline import DetectionEngineError, detect_entities_multi_engine
-from legal_anonymizer.learning import detect_learned_entities, learn_from_table
+from legal_anonymizer.learning import detect_learned_entities, filter_whitelisted_entities, learn_from_table
 from legal_anonymizer.mapping_store import (
     build_mapping_table,
     export_mapping_xlsx,
@@ -58,6 +58,7 @@ def anonymize_file(source_path: Path, workspace: WorkspacePaths) -> AnonymizedFi
     except DetectionEngineError as exc:
         return _write_detection_failure_result(source_path, workspace, text, str(exc))
     entities.extend(detect_learned_entities(text, workspace.mappings))
+    entities = filter_whitelisted_entities(entities, workspace.mappings)
     table = build_mapping_table(source_path.name, entities)
     table.source_sha256 = file_sha256(source_path)
     table.source_size = source_path.stat().st_size
