@@ -1,5 +1,13 @@
 # 实现文档：律师本地 Word 匿名化与还原小工具
 
+> Historical design note (2026-09-08): the C#/WPF/DPAPI architecture and
+> phase sequence below are the original proposal, not the current build
+> instructions. Current source is Python/PySide6 with optional Word COM for
+> .doc conversion; see DEVELOPER_GUIDE.md and pyproject.toml. DPAPI/encrypted
+> mappings are not implemented in mapping_store.py. Preserve this protection
+> requirement as an explicit gap; do not restart the project, claim security
+> acceptance or silently remove the requirement because the stack changed.
+
 版本：v0.1 MVP  
 开发目标：让 Codex 可以直接据此创建仓库、实现核心功能和测试。  
 优先级：先做一个稳定、保守、可运行的小工具；不要上本地大模型；不要接外部 API。
@@ -1260,4 +1268,3 @@ README 应包括：
 8. 页眉、页脚、表格、批注至少有测试覆盖。
 9. 含图片文件不被放行。
 10. 测试集中的敏感字符串匿名化后无残留。
-
