@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a repository AGENTS entry for the existing Python/PySide6 implementation and scoped local-only instruction maintenance.
+- Marked the original C#/WPF kickoff/design as historical without deleting its body or waiving its security requirements.
+- Documented the unmet encrypted-mapping requirement: current JSON/Excel mappings remain readable local sensitive files. No encryption implementation or security acceptance is implied.
+
 - README、用户指南、律师转发页新增真实运行截图和更具体的上手步骤。
 - 新增主界面、处理完成状态、工作文件夹结构三张说明图，降低非技术用户理解成本。
 

@@ -1,5 +1,13 @@
 # PRD：律师本地 Word 匿名化与还原小工具
 
+> Status note (2026-09-08): original product requirements retained below, not
+> a statement of current implementation or full acceptance. Current code is
+> Python/PySide6 and supports more input formats than this initial proposal.
+> The encrypted-mapping requirement is still unmet: mapping_store.py writes
+> plain JSON and Excel. This note does not waive that requirement or prove
+> the upload gate satisfies this PRD. See AGENTS.md and DEVELOPER_GUIDE.md
+> for current execution routing; preserve the requirements when assessing gaps.
+
 版本：v0.1 MVP  
 目标平台：Windows 10 / Windows 11  
 目标用户：非技术律师、律师助理、法务  
@@ -645,4 +653,3 @@ MVP 成功指标：
 2. OCR 插件。
 3. PDF 支持。
 4. 律所集中部署版。
-

@@ -1,5 +1,11 @@
 # Codex Kickoff Prompt
 
+> Historical kickoff, not the current task entry (2026-09-08). The app now
+> exists in Python/PySide6. Do not replay the phase-zero planning request or
+> migrate to C#/WPF unless explicitly asked. Start from root AGENTS.md and
+> current code/developer guidance. The original prompt below is preserved;
+> its encryption requirement remains an unmet protection, not a waived one.
+
 你要实现一个 Windows 本地小工具：律师本地 Word 匿名化与还原助手。
 
 请先阅读：
